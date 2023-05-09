@@ -30,10 +30,9 @@ pars.set_for_lmax(l_gen, lens_potential_accuracy=0)#i generate the cl up to l_ge
 pars.WantTensors=True #i tell camb to compute the tensor perturbations to the maps
 
 results = camb.get_results(pars)
-powers =results.get_cmb_power_spectra(pars, CMB_unit='muK')#spectra are multiplied by l*(l+1)/2pi
+powers =results.get_cmb_power_spectra(pars, CMB_unit='muK',raw_cl=True)#spectra are multiplied by l*(l+1)/2pi
 totCL=powers['total']
 d=[totCL[0:lmax,0],totCL[0:lmax,1], totCL[0:lmax,2], totCL[0:lmax,3]] #i keep only the cl with l<lmax
-ls = np.arange(d[0].shape[0])
 
 def convert_to_df(totCL):
     #d={"l":ls}
@@ -44,10 +43,8 @@ def convert_to_df(totCL):
     D["TE"]=totCL[3]
     df=pd.DataFrame(D)
     return(df)
-d=convert_to_df(d)
-lmax=len(d["TT"])-1
+d=convert_to_df(d)# i convert the list of spectra in a dataframe with TT,EE,BB,TE as indexes
 
-ell = np.arange(0,lmax+1)
 n_test=10000
 n_channels=2
 high_nside = 512
@@ -59,12 +56,6 @@ n_pix=hp.nside2npix(low_nside)
 sensitivity=4 #muK-arcmin
 mu, sigma = 0, sensitivity*np.deg2rad(1./60.)/res 
 smooth=window*beam
-
-cl=d.reindex(np.arange(1, lmax+1)) #i rescale the cls dividing them by l(l+1)/2pi
-#since for l=0 i can't divide by l i first remove the first row
-cl = cl.divide(cl.index * (cl.index+1) / (np.pi*2), axis="index") 
-cl=cl.reindex(np.arange(0, lmax+1)) #then i add it again and put it to zero
-cl=cl.fillna(0)
 
 mappe_B=np.zeros((n_test,n_pix,2)) #i prepare an array of 10000 pair of maps
 for i in range(n_test):

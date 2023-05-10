@@ -19,19 +19,8 @@ fval=0.1
 n_train=100000
 f_tune=0.1
 loss_training=sigma_batch_loss
-def convert_to_df(totCL):
-    #d={"l":ls}
-    d={}
-    d["TT"]=totCL[0]
-    d["EE"]=totCL[1]
-    d["BB"]=totCL[2]
-    d["TE"]=totCL[3]
-    df=pd.DataFrame(d)
-    return(df)
 
-f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_006.npz') #the cCls are in the other directory!
-#https://numpy.org/doc/stable/reference/generated/numpy.concatenate.html if i have multiple npz files
-
+f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_006.npz') 
 print("outfile_R:",f_.files) #give the keiwords for the stored arrays
 data=f_["data"]
 r=f_["r"]
@@ -47,37 +36,33 @@ np.random.seed(seed_train)
 high_nside = 512
 low_nside= 16
 window=hp.pixwin(low_nside,lmax=lmax)
-res=hp.nside2resol(low_nside, arcmin=False) #false give output in radians
+res=hp.nside2resol(low_nside, arcmin=False)
 beam=hp.gauss_beam(2*res, lmax=lmax)
 n_pix=hp.nside2npix(low_nside)
 sensitivity=4 #muK-arcmin
 mu, sigma = 0, sensitivity*np.deg2rad(1./60.)/res
 smooth=window*beam
 
+def normalize_cl(input_cl): #this is the function to divide each cl of a given spectra by l(l+1)/2pi
+    output_cl=np.zeros(len(input_cl)) # i prepare the output array
+    for i in range(1,len(input_cl)):
+        output_cl[i]=input_cl[i]/i/(i+1)*2*np.pi # i divide each element by l(l+1)/2pi
+    return output_cl
+
 mappe_B=np.zeros((n_train,n_pix,2))
 y_r=np.zeros((n_train,1))
 for i,cl_in in enumerate(data):
-    #print(len(ell),len(cl_in[1]))
-    input_cl=convert_to_df(cl_in)
-    cl=input_cl.reindex(np.arange(1, lmax+1))
-    #print(cl.head())#,input_cl.tail())
-    cl = cl.divide(cl.index * (cl.index+1) / (np.pi*2), axis="index")
-    cl=cl.reindex(np.arange(0, lmax+1))
-    cl=cl.fillna(0)
+    cl=normalize_cl(cl_in)
     for k in range(map_per_cl):
         index=i*map_per_cl+k
         y_r[index]=r[i]
         alm = hp.synalm((cl.TT, cl.EE, cl.BB, cl.TE), lmax=lmax, new=True) 
-    #smooth=np.ones(len(window))
         alm_wb = np.array([hp.almxfl(each,smooth) for each in alm])
-        #cmb_map = hp.alm2map(alm_wb, nside=low_nside, pol=True, lmax=lmax)
         alm_B=alm_wb[2]
         B_map=hp.alm2map(alm_B, nside=low_nside, pol=False, lmax=lmax)
         for j in range(0,2*n_channels,2):
             noise = np.random.normal(mu, sigma, n_pix)
             mappe_B[index,:,int(j/2)]=B_map+noise
-
-print(mappe_B.shape, y_r.shape)
 
 def unison_shuffled_copies(a, b):
     assert len(a) == len(b)
@@ -112,23 +97,11 @@ class MyHyperModel(keras_tuner.HyperModel): # i define an hypermodel class.
 
         shape = (hp.nside2npix(nside), 2)
         inputs = tf.keras.layers.Input(shape)
-        # nside 16 -> 8
-        x = nnhealpix.layers.ConvNeighbours(nside, filters=32, kernel_size=9)(inputs)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = nnhealpix.layers.Dgrade(nside, nside//2)(x)
-        # nside 8 -> 4
-        x = nnhealpix.layers.ConvNeighbours(nside//2, filters=32, kernel_size=9)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = nnhealpix.layers.Dgrade(nside//2, nside//4)(x)
-        # nside 4 -> 2
-        x = nnhealpix.layers.ConvNeighbours(nside//4, filters=32, kernel_size=9)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = nnhealpix.layers.Dgrade(nside//4, nside//8)(x)
-        # nside 2 -> 1
-        x = nnhealpix.layers.ConvNeighbours(nside//8, filters=32, kernel_size=9)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = nnhealpix.layers.Dgrade(nside//8, nside//16)(x)
-        # dropout
+        x=inputs
+        for k in range(4):
+            x = nnhealpix.layers.ConvNeighbours(nside/2**k, filters=32, kernel_size=9)(x)
+            x = tf.keras.layers.Activation('relu')(x)
+            x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) 
         x = tf.keras.layers.Dropout(drop_rate)(x)
         x = tf.keras.layers.Flatten()(x)
         
@@ -196,7 +169,6 @@ class MyHyperModel(keras_tuner.HyperModel): # i define an hypermodel class.
             return model.fit(x_train,y_train,validation_data=(x_val,y_val),batch_size=batch_size, shuffle=False, **kwargs)
         else: #if i use another loss function i can shuffle the input data in the normal way
             return model.fit(x_train,y_train,validation_data=(x_val,y_val),batch_size=batch_size, **kwargs)
-# In[13]:
 home_dir='/home/amorelli/r_estimate/B_maps_white_noise/tuning'
 tuner = keras_tuner.BayesianOptimization( # i create the tuner object. 
     MyHyperModel(),#i define the model i will use (with tunable hyperparameters)

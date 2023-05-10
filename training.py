@@ -38,14 +38,11 @@ metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss]# these ar
 np.random.seed(seed_train)# i set a random seed for the generation of the maps for reproducibility
 n_train=100000 #th enumber of training+validation pair of maps that i will generate
 
-def convert_to_df(totCL): #function to convert the input spectra to dataframes for later conversion
-    d={}
-    d["TT"]=totCL[0]
-    d["EE"]=totCL[1]
-    d["BB"]=totCL[2]
-    d["TE"]=totCL[3]
-    df=pd.DataFrame(d)
-    return(df)
+def normalize_cl(input_cl): #this is the function to divide each cl of a given spectra by l(l+1)/2pi
+    output_cl=np.zeros(len(input_cl)) # i prepare the output array
+    for i in range(1,len(input_cl)):
+        output_cl[i]=input_cl[i]/i/(i+1)*2*np.pi # i divide each element by l(l+1)/2pi
+    return output_cl
 
 f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_006.npz') 
 print("outfile_R:",f_.files) #give the keiwords for the stored arrays
@@ -73,11 +70,7 @@ smooth=window*beam
 mappe_B=np.zeros((n_train,n_pix,2)) # i prepare an array of n_train pairs of output maps
 y_r=np.zeros((n_train,1)) # i prepare the array for the corresponding output r
 for i,cl_in in enumerate(data): # i iterate on the input spectra
-    input_cl=convert_to_df(cl_in) # this is the block to normalize the spectra 
-    cl=input_cl.reindex(np.arange(1, lmax+1))
-    cl = cl.divide(cl.index * (cl.index+1) / (np.pi*2), axis="index")
-    cl=cl.reindex(np.arange(0, lmax+1))
-    cl=cl.fillna(0)
+    cl=normalize_cl(cl_in) # i normalize the cl
     for k in range(map_per_cl): #i have map_per_cl maps to generate for each spectra -> i iterate on the same spectra map_per_cl times
         index=i*map_per_cl+k #this is the index (in mappe_B) of the kth map that i am generating for this spectra
         y_r[index]=r[i]
@@ -176,21 +169,11 @@ def compile_and_fit(model, X_train, y_train, X_valid, y_valid): # function to co
 shape = (hp.nside2npix(nside), 2)
 inputs = tf.keras.layers.Input(shape)
 # nside 16 -> 8
-x = nnhealpix.layers.ConvNeighbours(nside, filters=32, kernel_size=9)(inputs)
-x = tf.keras.layers.Activation('relu')(x)
-x = nnhealpix.layers.Dgrade(nside, nside//2)(x)
-# nside 8 -> 4
-x = nnhealpix.layers.ConvNeighbours(nside//2, filters=32, kernel_size=9)(x)
-x = tf.keras.layers.Activation('relu')(x)
-x = nnhealpix.layers.Dgrade(nside//2, nside//4)(x)
-# nside 4 -> 2
-x = nnhealpix.layers.ConvNeighbours(nside//4, filters=32, kernel_size=9)(x)
-x = tf.keras.layers.Activation('relu')(x)
-x = nnhealpix.layers.Dgrade(nside//4, nside//8)(x)
-# nside 2 -> 1
-x = nnhealpix.layers.ConvNeighbours(nside//8, filters=32, kernel_size=9)(x)
-x = tf.keras.layers.Activation('relu')(x)
-x = nnhealpix.layers.Dgrade(nside//8, nside//16)(x)
+x=inputs
+for k in range(4):
+    x = nnhealpix.layers.ConvNeighbours(nside/2**k, filters=32, kernel_size=9)(x)
+    x = tf.keras.layers.Activation('relu')(x)
+    x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
 # dropout
 x = tf.keras.layers.Dropout(drop)(x)
 x = tf.keras.layers.Flatten()(x)

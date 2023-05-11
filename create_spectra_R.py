@@ -45,7 +45,7 @@ for i in to_iter:
         print("number: ",i) #ogni 100 spettri stampo un messaggio di output 
 
 data=np.asarray(data)#converto i dati in un tensore numpy e li salvo in un file npz
-np.savez("outfile_R_000_006_seed="+seed,data=data,r=r) #I Cl vanno sotto la label "data", Gli r che generano i Cl corrispondenti vanno
+np.savez("outfile_R_000_006_seed="+str(seed),data=data,r=r) #I Cl vanno sotto la label "data", Gli r che generano i Cl corrispondenti vanno
 #sotto la label "r". 
 
 

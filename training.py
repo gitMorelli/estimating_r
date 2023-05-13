@@ -16,7 +16,7 @@ from loss_functions import sigma_loss, sigma2_loss,sigma_batch_loss,sigma_norm_l
 # i set the training parameters
 nside = 16
 reduce_lr_on_plateau = True
-batch_size = 512
+batch_size = 32
 one_layer=True # this is to switch between one dense layer or two dense layer
 max_epochs = 200
 p_stopping=20
@@ -31,18 +31,53 @@ drop=0.2
 n_layer_0=48
 n_layer_1=64
 n_layer_2=16
-name='6b_5_23'
+name='13_5_23'
 base_dir='/home/amorelli/r_estimate/B_maps_white_noise/results_'+name+'/'
 loss_training=sigma_batch_loss # this is the loss i use for the training
 metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss]# these are the different loss functions i have used. I use them as metrics
 np.random.seed(seed_train)# i set a random seed for the generation of the maps for reproducibility
-n_train=100000 #th enumber of training+validation pair of maps that i will generate
+n_train=150000 #the total number of training+validation pair of maps that i will generate
+n_train_fix=100000 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
 
 def normalize_cl(input_cl): #this is the function to divide each cl of a given spectra by l(l+1)/2pi
     output_cl=np.zeros(len(input_cl)) # i prepare the output array
     for i in range(1,len(input_cl)):
         output_cl[i]=input_cl[i]/i/(i+1)*2*np.pi # i divide each element by l(l+1)/2pi
     return output_cl
+def unison_sorted_copies(a, b):#this function sort the first array and reorder the second so that the pairing between elements
+    #is maintained
+    assert len(a) == len(b)
+    p=np.argsort(a,axis=0)
+    a_out=np.empty_like(a)# this intermediate step is necessary to prevent shape change in the arrays
+    b_out=np.empty_like(b)
+    for i in range(len(a)):
+        a_out[i]=a[p[i]]
+        b_out[i]=b[p[i]]
+    return a_out, b_out
+def unison_shuffled_copies(a, b): # this function shuffle the first array and reorder the second so that elements that had same index
+    #before the shuffling have same indexes after
+    assert len(a) == len(b)
+    p = np.random.permutation(len(a)) #this give a random permutation of the indexes of a
+    return a[p], b[p] 
+def compute_map_per_cl(r,n,n_fix): # this function determine how many maps i need to generate for each Cl based on n_train and n_train_fix
+    #from each cl n_train_fix/n_cl maps are generated at least. The other n_train-n_train_fix are spread on the interval so that more maps
+    #are generated as we go from r_half to r=r_max or r=r_min. I use a linear relation map_per_cl=m*r+q
+    n_cl=len(r) #the number of cls i use to generate the maps
+    dr=r[1]-r[0] #difference between subcessive r values
+    r_mean=r[-1]/2#middle r of the interval
+    s_min=int(n_fix/n_cl) #the number of maps generated for Cl(r=r_half), this is the minimum number of maps generated for a Cl
+    z=r_mean*n_cl/2 + dr*(n_cl/2)*(n_cl/2+1)/2
+    m=(n/2-s_min*(n_cl/2+1))/(z-n_cl/2*r_mean) #formula for the angular coefficient of the formula that generates the maps_per_cl
+    q=s_min-m*r_mean 
+    num_maps=np.empty_like(r,dtype=int)
+    q_1=q+2*m*r_mean #for generation of maps_per_cl on the left of the middle value i need to change the sign of m and compute a new q based
+    #on r_half and q
+    for i,x in enumerate(r):
+        if x>=r_mean: #for points on the right of r_half i use one formula, for points on the left the symmetric formula
+            num_maps[i]=round(m*x+q)
+        else:
+            num_maps[i]=round(-m*x+q_1)
+    return(num_maps)
 
 f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_006.npz') 
 print("outfile_R:",f_.files) #give the keiwords for the stored arrays
@@ -50,12 +85,12 @@ data=f_["data"]
 r=f_["r"]
 lmax=len(data[0][0])-1
 print("lmax: ",lmax)
-ell = np.arange(0,lmax+1)
-n_map=len(data)
-map_per_cl=int(n_train/n_map) # i use each spectra to generate some maps. Eg if i have 10 spectra with variable r and i want
-#to generate 1000 maps i will generate 10 maps per spectra
-n_channels=2
+r, data=unison_sorted_copies(r, data)
+map_per_cl=np.empty_like(r)
+size=len(map_per_cl)
+map_per_cl=compute_map_per_cl(r,n_train,n_train_fix) #i generate map_per_cl for every value of r
 
+n_channels=2
 #i generate noise, window function and beam function
 high_nside = 512
 low_nside= 16
@@ -67,14 +102,19 @@ sensitivity=4 #muK-arcmin
 mu, sigma = 0, sensitivity*np.deg2rad(1./60.)/res
 smooth=window*beam
 
+
 mappe_B=np.zeros((n_train,n_pix,2)) # i prepare an array of n_train pairs of output maps
 y_r=np.zeros((n_train,1)) # i prepare the array for the corresponding output r
+previous=0 #this is an index to keep track of the position in mappe_B as i generate the maps for the CL
+#i need an index cause i generate a variable number of maps for each Cl
 for i,cl_in in enumerate(data): # i iterate on the input spectra
-    cl=normalize_cl(cl_in) # i normalize the cl
-    for k in range(map_per_cl): #i have map_per_cl maps to generate for each spectra -> i iterate on the same spectra map_per_cl times
-        index=i*map_per_cl+k #this is the index (in mappe_B) of the kth map that i am generating for this spectra
+    cl=np.empty_like(cl_in)
+    for j in range(len(cl_in)):
+        cl[j]=normalize_cl(cl_in[j]) # i normalize the cl
+    for k in range(map_per_cl[i]): #i have map_per_cl maps to generate for each spectra -> i iterate on the same spectra map_per_cl times
+        index=previous+k #this is the index (in mappe_B) of the kth map that i am generating for this spectra
         y_r[index]=r[i]
-        alm = hp.synalm((cl.TT, cl.EE, cl.BB, cl.TE), lmax=lmax, new=True) # i generate the a_lm
+        alm = hp.synalm((cl[0], cl[1], cl[2], cl[3]), lmax=lmax, new=True) # i generate the a_lm. In order the cl[i] are TT,EE,BB,TE
         alm_wb = np.array([hp.almxfl(each,smooth) for each in alm]) #i multiply the alm by the window functions
         alm_B=alm_wb[2]#i select the alm^B
         B_map=hp.alm2map(alm_B, nside=low_nside, pol=False, lmax=lmax)#i make the harmonic transform to obtain the B map
@@ -82,34 +122,38 @@ for i,cl_in in enumerate(data): # i iterate on the input spectra
             #the map is the same for the channels, the noise is different (same magnitude)
             noise = np.random.normal(mu, sigma, n_pix)
             mappe_B[index,:,int(j/2)]=B_map+noise
-
-n_val=int(n_train*fval)#this is the number of vlaidation maps i will use
-def unison_shuffled_copies(a, b): # this function shuffle the first array and reorder the second so that elements that had same index
-    #before the shuffling have same indexes after
-    assert len(a) == len(b)
-    p = np.random.permutation(len(a)) #this give a random permutation of the indexes of a
-    return a[p], b[p] 
-mappe_B, y_r = unison_shuffled_copies(mappe_B, y_r) # i shuffle the maps and the r values
-tot=n_train-n_val # this is the number of maps used for the actual training
+    previous+=map_per_cl[i] #after i have generated all the maps for a Cl i add to the index the number of maps i have 
+    #generated for that Cl
+    
+n_val=int(n_train_fix/len(r)*fval)#this is the number of validation maps i take for each value of r (it is the fraction fval of the 
+#total number of maps that are distributed on all r values
+x_val=np.empty_like(mappe_B)[:int(n_val*len(r))] #i take n_val element for each r to build the validation set -> it will have this dimension
+y_val=np.empty_like(y_r)[:int(n_val*len(r))]
+tot=int(n_train-n_val*len(r)) # this is the number of maps used for the actual training
+x_train=np.empty_like(mappe_B)[:tot] #i take n_val element for each r to build the validation set -> it will have this dimension
+y_train=np.empty_like(y_r)[:tot]
 R=tot%batch_size # i compute the reminder with the batch size so that tot-R (the number of maps i will use for actual training)
 #is divisible by the batch_size
-x_train=mappe_B[:tot-R]
-x_val=mappe_B[tot-R:]
-y_train=y_r[:tot-R]
-y_val=y_r[tot-R:]
-def unison_sorted_copies(a, b):#this function sort the first array and reorder the second so that the pairing between elements
-    #is maintained
-    assert len(a) == len(b)
-    p=np.argsort(a,axis=0)
-    a_out=np.empty_like(a)# this intermediate step is necessary to prevent shape change in the arrays
-    b_out=np.empty_like(b)
-    for i in range(len(a)):
-        a_out[i]=a[p[i]]
-        b_out[i]=b[p[i]]
-    return a_out, b_out
+
+previous=0
+previous_val=0 #this index and the next have the same scope of previous but keep track of position in y_val and y_train (not in y_r)
+previous_train=0
+for i in range(len(r)):
+    for k in range(n_val):
+        y_val[previous_val+k]=y_r[previous+k]
+        x_val[previous_val+k]=mappe_B[previous+k]
+    previous_val+=n_val
+    for k in range(n_val,map_per_cl[i]):
+        y_train[previous_train+k-1]=y_r[previous+k]
+        x_train[previous_train+k-1]=mappe_B[previous+k]
+    previous_train+=map_per_cl[i]-n_val
+    previous+=map_per_cl[i]
+x_train=x_train[:len(x_train)-R]# i remove the last R maps from the training set ( i simply remove them because it is easier 
+#than finding a way to pass R uniformly chosen maps to validation set and R<<n_train)
+y_train=y_train[:len(y_train)-R]
+
 if loss_training==sigma_batch_loss: #if i use the sigma_batch_loss i also need to use a particular ordering of the training set 
     #this is why i make this check
-    y_train, x_train = unison_sorted_copies(y_train, x_train)# i sort the training set according to the r used to generate the maps
     list_length=int(len(y_train)/batch_size)
     lista=np.zeros(shape=(list_length,batch_size,y_train.shape[1])) # i generate an array that has same shape of y_r but has blocks of 
     #batch_size -> i will store the y_r here dividing y_r in block of batch_size
@@ -171,7 +215,7 @@ inputs = tf.keras.layers.Input(shape)
 # nside 16 -> 8
 x=inputs
 for k in range(4):
-    x = nnhealpix.layers.ConvNeighbours(nside/2**k, filters=32, kernel_size=9)(x)
+    x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9)(x)
     x = tf.keras.layers.Activation('relu')(x)
     x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
 # dropout
@@ -193,7 +237,6 @@ model = tf.keras.models.Model(inputs=inputs, outputs=out)
 
 history = compile_and_fit(model, x_train, y_train, x_val, y_val)
 print('Saving model to disk')
-model.save(base_dir+'test_model')
 
 #-----------------------------------------
 hyperparameters={} #i save all the hyperparameters in a dictionary 

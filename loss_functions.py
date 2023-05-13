@@ -73,3 +73,17 @@ def sigma_f_loss(y_true, y_pred):
     loss += f*tf.math.reduce_sum( tf.math.square(squared_residual -  sigma) )
     #in this loss i multiply the sigma part of the loss by a factor f
     return loss
+
+def mse_batch(y_true, y_pred):
+    squared_residual = tf.math.square(y_true[:,0] - y_pred[:,0])
+    #size=tf.math.reduce_sum(tf.math.divide(y_true[:,0],y_true[:,0]))
+    size=tf.shape(y_true,out_type=tf.dtypes.int32)[0]
+    size=tf.cast(size, dtype=tf.dtypes.float32)
+    #tf.print(size)
+    var_batch=tf.math.divide(tf.math.reduce_sum(squared_residual),size)
+    sigma_batch=tf.math.sqrt(var_batch)
+    sigma = y_pred[:,1]
+    #squared_sigma = tf.math.square(y_pred[:,1])
+    loss = tf.math.reduce_sum( tf.math.square(sigma_batch -  sigma) )
+    #loss += tf.math.reduce_sum( tf.math.square(squared_residual -  squared_sigma) )
+    return loss

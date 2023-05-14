@@ -11,33 +11,35 @@ import random as python_random
 import nnhealpix.layers
 from tensorflow.keras import metrics
 import pandas as pd
-from loss_functions import sigma_loss, sigma2_loss,sigma_batch_loss,sigma_norm_loss,sigma_log_loss,mse_tau,mse_sigma, sigma_f_loss
+from loss_functions import sigma_loss, sigma2_loss,sigma_batch_loss,sigma_norm_loss,sigma_log_loss,mse_tau,mse_sigma, mse_batch, sigma_f_loss
+import math
 
 # i set the training parameters
 nside = 16
 reduce_lr_on_plateau = True
-batch_size = 32
+batch_size = 16
 one_layer=True # this is to switch between one dense layer or two dense layer
 max_epochs = 200
 p_stopping=20
 p_reduce=5
 f_reduce=0.5
-seed_train=21
+seed_train=3
 lr=0.0003 
-stopping_monitor="val_loss"
+stopping_monitor="val_mse_batch"
 reduce_monitor="val_loss"
-fval=0.1 # this is the fraction of data that i use for validation 
+fval=0.10 # this is the fraction of data that i use for validation 
 drop=0.2
 n_layer_0=48
 n_layer_1=64
 n_layer_2=16
-name='13_5_23'
+name='14_5_23'
 base_dir='/home/amorelli/r_estimate/B_maps_white_noise/results_'+name+'/'
+training_loss="new_sigma_batch"
 loss_training=sigma_batch_loss # this is the loss i use for the training
-metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss]# these are the different loss functions i have used. I use them as metrics
+metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss, mse_batch]# these are the different loss functions i have used. I use them as metrics
 np.random.seed(seed_train)# i set a random seed for the generation of the maps for reproducibility
-n_train=150000 #the total number of training+validation pair of maps that i will generate
-n_train_fix=100000 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
+n_train=100000 #the total number of training+validation pair of maps that i will generate
+n_train_fix=40000 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
 
 def normalize_cl(input_cl): #this is the function to divide each cl of a given spectra by l(l+1)/2pi
     output_cl=np.zeros(len(input_cl)) # i prepare the output array
@@ -74,12 +76,12 @@ def compute_map_per_cl(r,n,n_fix): # this function determine how many maps i nee
     #on r_half and q
     for i,x in enumerate(r):
         if x>=r_mean: #for points on the right of r_half i use one formula, for points on the left the symmetric formula
-            num_maps[i]=round(m*x+q)
+            num_maps[i]=math.ceil(m*x+q)
         else:
-            num_maps[i]=round(-m*x+q_1)
+            num_maps[i]=math.ceil(-m*x+q_1)
     return(num_maps)
 
-f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_006.npz') 
+f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_001_seed=67.npz') 
 print("outfile_R:",f_.files) #give the keiwords for the stored arrays
 data=f_["data"]
 r=f_["r"]
@@ -89,6 +91,8 @@ r, data=unison_sorted_copies(r, data)
 map_per_cl=np.empty_like(r)
 size=len(map_per_cl)
 map_per_cl=compute_map_per_cl(r,n_train,n_train_fix) #i generate map_per_cl for every value of r
+n_train=np.sum(map_per_cl) #the actual n_train is bigger than the initial n_train because i use the ceil function to round the numbers
+#in the compute_map function
 
 n_channels=2
 #i generate noise, window function and beam function
@@ -125,11 +129,11 @@ for i,cl_in in enumerate(data): # i iterate on the input spectra
     previous+=map_per_cl[i] #after i have generated all the maps for a Cl i add to the index the number of maps i have 
     #generated for that Cl
     
-n_val=int(n_train_fix/len(r)*fval)#this is the number of validation maps i take for each value of r (it is the fraction fval of the 
+n_val=math.ceil(n_train_fix/len(r)*fval)#this is the number of validation maps i take for each value of r (it is the fraction fval of the 
 #total number of maps that are distributed on all r values
 x_val=np.empty_like(mappe_B)[:int(n_val*len(r))] #i take n_val element for each r to build the validation set -> it will have this dimension
 y_val=np.empty_like(y_r)[:int(n_val*len(r))]
-tot=int(n_train-n_val*len(r)) # this is the number of maps used for the actual training
+tot=n_train-n_val*len(r) # this is the number of maps used for the actual training
 x_train=np.empty_like(mappe_B)[:tot] #i take n_val element for each r to build the validation set -> it will have this dimension
 y_train=np.empty_like(y_r)[:tot]
 R=tot%batch_size # i compute the reminder with the batch size so that tot-R (the number of maps i will use for actual training)
@@ -143,9 +147,9 @@ for i in range(len(r)):
         y_val[previous_val+k]=y_r[previous+k]
         x_val[previous_val+k]=mappe_B[previous+k]
     previous_val+=n_val
-    for k in range(n_val,map_per_cl[i]):
-        y_train[previous_train+k-1]=y_r[previous+k]
-        x_train[previous_train+k-1]=mappe_B[previous+k]
+    for k in range(map_per_cl[i]-n_val):
+        y_train[previous_train+k]=y_r[previous+n_val+k]
+        x_train[previous_train+k]=mappe_B[previous+n_val+k]
     previous_train+=map_per_cl[i]-n_val
     previous+=map_per_cl[i]
 x_train=x_train[:len(x_train)-R]# i remove the last R maps from the training set ( i simply remove them because it is easier 
@@ -171,6 +175,7 @@ if loss_training==sigma_batch_loss: #if i use the sigma_batch_loss i also need t
             y_train[batch_size*i+j]=lista[i,j]# i put again the elements from the container to the y_r array
             x_train[batch_size*i+j]=lista_2[i,j]#same with mappe B
     #notice that there is no need to sort the validation dataset
+np.savez("check_r_distribution",y_train=y_train,y_val=y_val) 
 
 def compile_and_fit(model, X_train, y_train, X_valid, y_valid): # function to compile and run the model
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor=stopping_monitor,
@@ -237,24 +242,24 @@ model = tf.keras.models.Model(inputs=inputs, outputs=out)
 
 history = compile_and_fit(model, x_train, y_train, x_val, y_val)
 print('Saving model to disk')
-
+model.save(base_dir+'test_model')
 #-----------------------------------------
-hyperparameters={} #i save all the hyperparameters in a dictionary 
+hyperparameters={}
 hyperparameters["name"]=name
+hyperparameters["loss"]=training_loss
 hyperparameters["noise"]=sensitivity
+hyperparameters["p_stopping"]=p_stopping
+hyperparameters["p_reduce"]=p_reduce
+hyperparameters["f_reduce"]=f_reduce
+hyperparameters["stop-reduce"]=stopping_monitor+"-"+reduce_monitor
 hyperparameters["lr"]=lr
+hyperparameters["batch_size"]=batch_size
 hyperparameters["n_layers"]=one_layer
 if one_layer:
     hyperparameters["nodes_layers"]=n_layer_0
 else:
     hyperparameters["nodes_layers"]=str(n_layer_1)+"-"+str(n_layer_2)
-hyperparameters["batch_size"]=batch_size
-hyperparameters["p_reduce"]=p_reduce
-hyperparameters["f_reduce"]=f_reduce
-hyperparameters["p_stopping"]=p_stopping
-hyperparameters["stopping_monitor"]=stopping_monitor
-hyperparameters["reduce_monitor"]=reduce_monitor
-hyperparameters["comments"]="this is fine tuned on best model from tuning 1-5-23"
+hyperparameters["comments"]=" "
 hyperparameters = {k:[v] for k,v in hyperparameters.items()}
-output=pd.DataFrame(hyperparameters) # i convert the hyperparameters 
+output=pd.DataFrame(hyperparameters)
 output.to_csv(base_dir+'output.txt', index=False, sep=' ')

@@ -11,6 +11,7 @@ import camb
 #from loss_functions import sigma_loss, sigma2_loss,sigma_batch_loss,sigma_norm_loss,sigma_log_loss,mse_tau,mse_sigma, mse_batch, sigma_f_loss
 import math
 import random
+import os, shutil
 
 def generate_cl(n_spectra,Nside,Nside_red,tau_interval,r_interval,raw=0,verbose=0):
     ''' generate a matrix of cl^TT cl^EE cl^BB cl^TE. 
@@ -85,9 +86,18 @@ def adjust_map_per_cl(num_maps,n_train):
     if(to_remove !=0 ):
         to_remove_abs=np.abs(to_remove)
         sign=to_remove/to_remove_abs
-        indexes=np.random.randint(0,len(num_maps),to_remove_abs) 
+        #indexes=np.random.default_rng().choice(len(num_maps), size=to_remove_abs, replace=False)#to extract random without repetition
+        dim=len(num_maps)
+        indexes=np.random.randint(0,dim,to_remove_abs)
         for i in indexes:
-            num_maps[i]-=1*sign
+            if num_maps[i]-sign>0:
+                num_maps[i]-=1*sign
+            else: #se è maggiore di 0 sottraggo a quello altrimenti vado a indici successivi e mi fermo al primo a cui posso
+                #togliere senza andare in negativo
+                k=1
+                while(num_maps[(i+k)%dim]-sign<0):
+                    k+=1
+                num_maps[(i+k)%dim]-=sign
         
     return num_maps
 
@@ -148,26 +158,33 @@ def unison_shuffled_copies(a, b): # this function shuffle the first array and re
     p = np.random.permutation(len(a)) #this give a random permutation of the indexes of a
     return a[p], b[p] 
 
-def generate_noise_maps(n_train,n_channels,nside,kind_of_map,input_file=None,sensitivity=0):
+def generate_noise_maps(n_train,n_channels,nside,pol=1,sensitivity=0,input_files=None):
     '''
-    assume input_file is an npz file with a single array and that the input dimension is n_maps, n_pix,n_channels
-    if noise is QU noise last dimension is 2*n_channels, i have noiseQ1 noiseU1 noiseQ2 etc..'''
+    assume input_files is a list of npz files with a single array and that the input dimension is n_maps, n_pix,n_channels
+    n_channels contains also the information on polarization -> i channel and i+n_channels are different channels of same pol map
+    '''
     low_nside= nside
     n_pix=hp.nside2npix(low_nside)
-    if input_file==None:
-        noise=np.zeros((n_train,n_pix,n_channels))
+    if input_files==None:
+        noise=np.zeros((n_train,n_pix,n_channels*pol))
         res=hp.nside2resol(low_nside, arcmin=False)
         mu, sigma = 0, sensitivity*np.deg2rad(1./60.)/res
         for i in range(n_train):
             for k in range(n_channels):
-                noise[i,:,k]=np.random.normal(mu, sigma, n_pix)
-        return noise
+                rumore=np.random.normal(mu, sigma, n_pix) #noise is taken to be the same on Q and U
+                for p in range(pol):
+                    noise[i,:,k*pol+p]=rumore
+        return noise 
     else:
-        f_ = np.load(input_file) 
-        label=f_.files[0]
-        data=f_[label]
-        noise=np.zeros((n_train,n_pix,data.shape[-1])) #same shape of input file but n_train fixed by user
-        n_input=len(data)
+        f_ = [np.load(input_file) for input_file in input_files]
+        label=f_[0].files[0]
+        data_example=f_[0][label]
+        dim_example=len(data_example)
+        n_input=len(f_)*dim_example #numero di tutte le mappe di input
+        noise=np.zeros((n_train,n_pix,data_example.shape[-1])) #n_train è arbitrario, deciso dall'utente
+        data=np.zeros((n_input,n_pix,data_example.shape[-1]))#i create a container that merge the noise from the multiple files
+        for i,file in enumerate(f_):
+            data[i*dim_example:(i+1)*dim_example]=file[label]
         if n_input<n_train:
             diff=n_train-n_input
             indexes=np.random.randint(0,n_input,diff)
@@ -218,12 +235,11 @@ def generate_maps(data, r,n_train,nside, beam_w, noise_maps, map_per_cl, kind_of
     beam=hp.gauss_beam(beam_w, lmax=lmax)
     n_pix=hp.nside2npix(low_nside)
     smooth=window*beam
-    
+    pol=1 #if polarized or non polarized output
     r, data=unison_sorted_copies(r, data)
-    if kind_of_map!="QU":
-        mappe=np.zeros((n_train,n_pix,n_channels)) # i prepare an array of n_train pairs of output maps
-    else:
-        mappe=np.zeros((n_train,n_pix,2*n_channels)) # i prepare an array of n_train pairs of output maps
+    if kind_of_map=="QU":
+        pol=2
+    mappe=np.zeros((n_train,n_pix,n_channels*pol)) # i prepare an array of n_train pairs of output maps
     y_r=np.zeros((n_train,1)) # i prepare the array for the corresponding output r
     previous=0 #this is an index to keep track of the position in mappe_B as i generate the maps for the CL
     #i need an index cause i generate a variable number of maps for each Cl
@@ -254,13 +270,10 @@ def generate_maps(data, r,n_train,nside, beam_w, noise_maps, map_per_cl, kind_of
             else:
                 mappa=hp.alm2map(alm_wb, nside=low_nside, pol=True, lmax=lmax)
             
-            for j in range(0,2*n_channels,2): # i generate two maps+noise (two independent channels) from each of the map_per_cl B_maps
+            for j in range(n_channels): # i generate two maps+noise (two independent channels) from each of the map_per_cl B_maps
                 #the map is the same for the channels, the noise is different (same magnitude)
-                if kind_of_map!="QU":
-                    mappe[index,:,int(j/2)]=mappa+noise_maps[index,:,int(j/2)]
-                else:
-                    mappe[index,:,j]=mappa[1]+noise_maps[index,:,j]
-                    mappe[index,:,j+1]=mappa[2]+noise_maps[index,:,j+1]
+                for p in range(pol):
+                    mappe[index,:,j*pol+p]=mappa[p+1]+noise_maps[index,:,j*pol+p]
         previous+=map_per_cl[i] #after i have generated all the maps for a Cl i add to the index the number of maps i have 
         #generated for that Cl
     return mappe,y_r

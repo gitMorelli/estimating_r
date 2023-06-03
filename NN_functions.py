@@ -60,7 +60,7 @@ def prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,map_per_cl, batch_size,b
         #notice that there is no need to sort the validation dataset
     return x_train,y_train,x_val,y_val
 
-def compile_and_fit(model, x_train, y_train, x_val, y_val,stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2): # function to compile and run the model
+def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2): # function to compile and run the model
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor=stopping_monitor,
                                                       patience=p_stopping,
                                                       mode='min')

@@ -24,7 +24,7 @@ np.random.seed(seed_train)# i set a random seed for the generation of the maps f
 nside = 16
 n_train=100000 #the total number of training+validation pair of maps that i will generate
 n_train_fix=40000 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
-kind_of_map="QU"
+kind_of_map="EE"
 n_channels=2
 pol=2
 res=hp.nside2resol(nside, arcmin=False) 
@@ -77,11 +77,13 @@ for i in range(len(input_files)):
     input_files[i]=input_folder+"/"+input_files[i]
 noise_maps=uf.generate_noise_maps(n_train,n_channels,nside,pol=2,sensitivity=sensitivity,input_files=input_files)
 
+noise_E,noise_B=uf.convert_to_EB(noise_maps)
+
 maps_per_cl_gen=uf.maps_per_cl(distribution=1)
 maps_per_cl=maps_per_cl_gen.compute_maps_per_cl(r,n_train,n_train_fix)
 
 mappe_B,y_r=uf.generate_maps(data, r,n_train=n_train,nside=nside, map_per_cl=maps_per_cl, 
-                             noise_maps=noise_maps, beam_w=2*res, kind_of_map=kind_of_map, raw=0 , n_channels=n_channels,beam_yes=1 , verbose=0)
+                             noise_maps=noise_E, beam_w=2*res, kind_of_map=kind_of_map, raw=0 , n_channels=n_channels,beam_yes=1 , verbose=0)
 
 x_train,y_train,x_val,y_val = nuf.prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,maps_per_cl
                                                , batch_size, batch_ordering=True)

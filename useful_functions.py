@@ -273,25 +273,30 @@ def generate_maps(data, r,n_train,nside, beam_w, noise_maps, map_per_cl, kind_of
             for j in range(n_channels): # i generate two maps+noise (two independent channels) from each of the map_per_cl B_maps
                 #the map is the same for the channels, the noise is different (same magnitude)
                 for p in range(pol):
-                    mappe[index,:,j*pol+p]=mappa[p+1]+noise_maps[index,:,j*pol+p]
+                    if pol>1:
+                        mappe[index,:,j*pol+p]=mappa[p+1]+noise_maps[index,:,j*pol+p]
+                    else:
+                        mappe[index,:,j*pol+p]=mappa+noise_maps[index,:,j*pol+p]
         previous+=map_per_cl[i] #after i have generated all the maps for a Cl i add to the index the number of maps i have 
         #generated for that Cl
     return mappe,y_r
 
-def convert_to_EB(mappe_Q, mappe_U):
+def convert_to_EB(mappe_QU):
     ''' it expects mappeQ to be of shape n_maps,n_pix,n_channels'''
-    n_maps, n_pix, n_channels = (mappe_Q[0].shape[k] for k in range(3))
-    nside=hp.npix2nside(npix)
-    print(n_maps,n_pix,nside,n_channels)
+    pol=2
+    n_maps, n_pix, n_channels = (mappe_QU.shape[0],mappe_QU.shape[1],int(mappe_QU.shape[2]/pol))
+    nside=hp.npix2nside(n_pix)
+    #print(n_maps,n_pix,nside,n_channels)
     E_maps=np.zeros((n_maps,n_pix,n_channels)) # i prepare an array of n_train pairs of output maps
     B_maps=np.zeros((n_maps,n_pix,n_channels)) # i prepare an array of n_train pairs of output maps
     mappe_placeholder=np.zeros((n_maps,n_pix))
     for i in range(n_maps):
         for k in range(n_channels):
-            alm=hp.map2alm([mappe_placeholder[i,:],mappe_Q[i,:,k],mappe_U[i,:,k]], pol=True, verbose=True)
+            alm=hp.map2alm([mappe_placeholder[i,:],mappe_QU[i,:,k*pol],mappe_QU[i,:,k*pol+1]], pol=True, verbose=True)
             E_maps[i,:,k]=hp.alm2map(alm[1], nside, pol=False, verbose=True)
             B_maps[i,:,k]=hp.alm2map(alm[2], nside, pol=False, verbose=True)
     return E_maps, B_maps
+
 def check_y(y_train):
     y_train=np.sort(y_train,axis=0)
     y_count=[]

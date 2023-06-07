@@ -23,21 +23,21 @@ np.random.seed(seed_train)# i set a random seed for the generation of the maps f
 #map gen
 nside = 16
 n_train=100000 #the total number of training+validation pair of maps that i will generate
-n_train_fix=40000 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
-kind_of_map="QU"
+n_train_fix=100000 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
+kind_of_map="EE"
 n_channels=2
-pol=2
+pol=1
 res=hp.nside2resol(nside, arcmin=False) 
 sensitivity=4
 
-name='2_6_23'
+name='7_6_23'
 base_dir='/home/amorelli/QU_foreground_tau/'+name+'/'
 # callbacks
 reduce_lr_on_plateau = True
 p_stopping=20
 p_reduce=5
 f_reduce=0.5
-stopping_monitor="val_mse_batch"
+stopping_monitor="val_loss"
 reduce_monitor="val_loss"
 metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss, mse_batch]# these are the different loss functions i have used. I use them as metrics
 
@@ -56,9 +56,10 @@ else:
 batch_size = 16
 max_epochs = 200
 lr=0.0003 
-fval=0.25 # this is the fraction of data that i use for validation, computed on n_train_fix
-training_loss="new_sigma_batch"
-loss_training=sigma_batch_loss # this is the loss i use for the training
+fval=0.1 # this is the fraction of data that i use for validation, computed on n_train_fix
+training_loss="mse_tau+sigma_tau"
+loss_training_tau=mse_tau # this is the loss i use for the training
+loss_training_sigma=mse_sigma # this is the loss i use for the training
 shuffle=False
 
 f_ = np.load('/home/amorelli/cl_generator/outfile_l_47_complete.npz') 
@@ -77,25 +78,33 @@ for i in range(len(input_files)):
     input_files[i]=input_folder+"/"+input_files[i]
 noise_maps=uf.generate_noise_maps(n_train,n_channels,nside,pol=2,sensitivity=sensitivity,input_files=input_files)
 
+noise_E,noise_B=uf.convert_to_EB(noise_maps)
+
 maps_per_cl_gen=uf.maps_per_cl(distribution=1)
 maps_per_cl=maps_per_cl_gen.compute_maps_per_cl(r,n_train,n_train_fix)
 
 mappe_B,y_r=uf.generate_maps(data, r,n_train=n_train,nside=nside, map_per_cl=maps_per_cl, 
-                             noise_maps=noise_maps, beam_w=2*res, kind_of_map=kind_of_map, raw=0 , n_channels=n_channels,beam_yes=1 , verbose=0)
+                             noise_maps=noise_E, beam_w=2*res, kind_of_map=kind_of_map, raw=0 , n_channels=n_channels,beam_yes=1 , verbose=0)
 
 x_train,y_train,x_val,y_val = nuf.prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,maps_per_cl
                                                , batch_size, batch_ordering=True)
 
 np.savez(base_dir+"check_r_distribution",y_train=y_train,y_val=y_val) 
 
-model=nuf.build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer)
+model=nuf.build_network_tau(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer)
 
 history=nuf.compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, 
                             stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, 
                             loss_training,lr,metrics,shuffle=shuffle, verbose=2)
 
-print('Saving model to disk')
-model.save(base_dir+'test_model')
+model.save(base_dir+'test_model_tau')
+
+predictions_tau=model.predict(mappe_B)
+
+y_sigma=(predictions-y_r)**2
+
+x_train,y_train,x_val,y_val = nuf.prepare_data(y_sigma,mappe_B,r,n_train,n_train_fix,fval,maps_per_cl
+                                               , batch_size, batch_ordering=False)
 #-----------------------------------------
 hyperparameters={}
 hyperparameters["name"]=name

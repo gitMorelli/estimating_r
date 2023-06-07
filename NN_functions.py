@@ -60,7 +60,7 @@ def prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,map_per_cl, batch_size,b
         #notice that there is no need to sort the validation dataset
     return x_train,y_train,x_val,y_val
 
-def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2): # function to compile and run the model
+def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True]): # function to compile and run the model
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor=stopping_monitor,
                                                       patience=p_stopping,
                                                       mode='min')
@@ -78,6 +78,11 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
         filepath=checkpoint_filepath,
         save_weights_only=True, save_freq='epoch',save_best_only=False)
     #this callback save the weights of the model at each epoch of the training and save them in .hdf5 files
+    callbacks_all=[early_stopping,reduce_lr,csv_logger,model_checkpoint_callback]
+    callbacks=[]
+    for i,c in enumerate(callbacks):
+        if c:
+            callbacks.append(callbacks_all[i])
         
     model.compile(loss=loss_training,
                   optimizer=tf.optimizers.Adam(learning_rate=lr),
@@ -86,7 +91,7 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
     history = model.fit(x=x_train, y=y_train, 
                             batch_size=batch_size, epochs=max_epochs,
                             validation_data=(x_val, y_val),
-                            callbacks=[reduce_lr,early_stopping,model_checkpoint_callback,csv_logger],shuffle=shuffle,verbose=verbose)
+                            callbacks=callbacks,shuffle=shuffle,verbose=verbose)
     return history
 
 def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True):
@@ -113,6 +118,62 @@ def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=Tr
         x = tf.keras.layers.Dense(n_layer_2)(x)
         x = tf.keras.layers.Activation('relu')(x)
         out = tf.keras.layers.Dense(2)(x)
+    tf.keras.backend.clear_session()
+    model = tf.keras.models.Model(inputs=inputs, outputs=out)
+    return model
+
+def build_network_tau(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True):
+    #the structure of the neural network
+    shape = (hp.nside2npix(nside), n_inputs)
+    inputs = tf.keras.layers.Input(shape)
+    # nside 16 -> 8
+    x=inputs
+    for k in range(4):
+        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
+    # dropout
+    x = tf.keras.layers.Dropout(drop)(x)
+    x = tf.keras.layers.Flatten()(x)
+    if one_layer==True:# depending on the state os one_layer i create a NN with one layer or with two layers
+        x = tf.keras.layers.Dense(n_layer_0)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        out = tf.keras.layers.Dense(2)(x)
+    else:
+        x = tf.keras.layers.Dense(n_layer_1)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        x = tf.keras.layers.Dropout(drop)(x)
+        x = tf.keras.layers.Dense(n_layer_2)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        out = tf.keras.layers.Dense(1)(x)
+    tf.keras.backend.clear_session()
+    model = tf.keras.models.Model(inputs=inputs, outputs=out)
+    return model
+
+def build_network_sigma(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True):
+    #the structure of the neural network
+    shape = (hp.nside2npix(nside), n_inputs)
+    inputs = tf.keras.layers.Input(shape)
+    # nside 16 -> 8
+    x=inputs
+    for k in range(4):
+        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
+    # dropout
+    x = tf.keras.layers.Dropout(drop)(x)
+    x = tf.keras.layers.Flatten()(x)
+    if one_layer==True:# depending on the state os one_layer i create a NN with one layer or with two layers
+        x = tf.keras.layers.Dense(n_layer_0)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        out = tf.keras.layers.Dense(2)(x)
+    else:
+        x = tf.keras.layers.Dense(n_layer_1)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        x = tf.keras.layers.Dropout(drop)(x)
+        x = tf.keras.layers.Dense(n_layer_2)(x)
+        x = tf.keras.layers.Activation('relu')(x)
+        out = tf.keras.layers.Dense(1)(x)
     tf.keras.backend.clear_session()
     model = tf.keras.models.Model(inputs=inputs, outputs=out)
     return model

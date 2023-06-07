@@ -119,7 +119,7 @@ class maps_per_cl:
         #print(n,n_fix)
         n_cl=len(r) #the number of cls i use to generate the maps
         dr=r[1]-r[0] #difference between subcessive r values
-        r_mean=r[-1]/2#middle r of the interval
+        r_mean=(r[-1]+r[0])/2#middle r of the interval
         #r_temp=np.abs(r-r_mean)
         #closest=np.sort(r_temp)[0]+r_mean
         #r_mean=closest

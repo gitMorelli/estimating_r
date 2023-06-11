@@ -24,19 +24,37 @@ def sigma2_loss(y_true, y_pred):
     loss += tf.math.reduce_sum( tf.math.square(squared_residual -  sigma) )
     #same as before but sigma is y_pred[0]^2
     return loss
+
 def sigma_batch_loss(y_true, y_pred):
     squared_residual = tf.math.square(y_true[:,0] - y_pred[:,0])
     size=tf.shape(y_true,out_type=tf.dtypes.int32)[0] #this gives the size of the batch
-    #recall that during the training the steps are as follows: the loss is computed on one batch, the weights are updated
-    #this is done for all batches in an epoch. -> if batch_size=32 the input shape will always be 32 during the training
     size=tf.cast(size, dtype=tf.dtypes.float32)#i cast it to float since size is int by default
     var_batch=tf.math.divide(tf.math.reduce_sum(squared_residual),size)
     sigma_batch=tf.math.sqrt(var_batch)
     sigma = y_pred[:,1]
     loss = tf.math.reduce_sum(squared_residual)
     loss += tf.math.reduce_sum( tf.math.square(sigma_batch -  sigma) )
-    #the sigma is trained on the std of the batch elements
     return loss
+
+'''def sigma_batch_loss(Lambda,reg=False):
+    def loss_function(y_true,y_pred):
+        squared_residual = tf.math.square(y_true[:,0] - y_pred[:,0])
+        size=tf.shape(y_true,out_type=tf.dtypes.int32)[0] #this gives the size of the batch
+        #recall that during the training the steps are as follows: the loss is computed on one batch, the weights are updated
+        #this is done for all batches in an epoch. -> if batch_size=32 the input shape will always be 32 during the training
+        size=tf.cast(size, dtype=tf.dtypes.float32)#i cast it to float since size is int by default
+        var_batch=tf.math.divide(tf.math.reduce_sum(squared_residual),size)
+        sigma_batch=tf.math.sqrt(var_batch)
+        sigma = y_pred[:,1]
+        loss = tf.math.reduce_sum(squared_residual)
+        loss += tf.math.reduce_sum( tf.math.square(sigma_batch -  sigma) )
+        if reg:
+            #l2_norms = [tf.nn.l2_loss(v) for v in tf.compat.v1.trainable_variables()]
+            #l2_norm = tf.reduce_sum(l2_norms)
+            #loss+=Lambda*l2_norm
+            pass
+        return loss
+    return loss_function'''
 
 def sigma_norm_loss(y_true, y_pred):
     squared_residual = tf.math.square(y_true[:,0] - y_pred[:,0])
@@ -51,6 +69,7 @@ def sigma_log_loss(y_true, y_pred):
     loss = tf.math.log(tf.math.reduce_sum(squared_residual)+1)
     loss += tf.math.log(tf.math.reduce_sum( tf.math.square(squared_residual -  squared_sigma ) )+1)
     return loss
+
 
 def mse_tau(y_true, y_pred):
     squared_residual = tf.math.square(y_true[:,0] - y_pred[:,0])

@@ -20,6 +20,7 @@ def prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,map_per_cl, batch_size,b
     tot=n_train-n_val*len(r) # this is the number of maps used for the actual training
     x_train=np.empty_like(mappe_B)[:tot] #i take n_val element for each r to build the validation set -> it will have this dimension
     y_train=np.empty_like(y_r)[:tot]
+    #print(tot)
     R=tot%batch_size # i compute the reminder with the batch size so that tot-R (the number of maps i will use for actual training)
     #is divisible by the batch_size
     previous=0
@@ -94,86 +95,41 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
                             callbacks=callbacks,shuffle=shuffle,verbose=verbose)
     return history
 
-def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True):
+def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True,num_output=2,use_normalization=[False,False],use_drop=False,trainable=[True,True]):
     #the structure of the neural network
     shape = (hp.nside2npix(nside), n_inputs)
     inputs = tf.keras.layers.Input(shape)
     # nside 16 -> 8
     x=inputs
     for k in range(4):
-        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9)(x)
+        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9,trainable=trainable[0])(x)
+        if use_drop:
+             x = tf.keras.layers.dropout(drop)(x)
+        if use_normalization[0]:
+            x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Activation('relu')(x)
         x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
     # dropout
     x = tf.keras.layers.Dropout(drop)(x)
     x = tf.keras.layers.Flatten()(x)
     if one_layer==True:# depending on the state os one_layer i create a NN with one layer or with two layers
-        x = tf.keras.layers.Dense(n_layer_0)(x)
+        x = tf.keras.layers.Dense(n_layer_0,trainable = trainable[1])(x)
+        if use_normalization[0]:
+            x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(2)(x)
+        out = tf.keras.layers.Dense(num_output)(x)
     else:
-        x = tf.keras.layers.Dense(n_layer_1)(x)
+        x = tf.keras.layers.Dense(n_layer_1,trainable = trainable[1])(x)
+        if use_normalization[0]:
+            x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Dropout(drop)(x)
-        x = tf.keras.layers.Dense(n_layer_2)(x)
+        x = tf.keras.layers.Dense(n_layer_2,trainable = trainable[1])(x)
+        if use_normalization[0]:
+            x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(2)(x)
+        out = tf.keras.layers.Dense(num_output)(x)
     tf.keras.backend.clear_session()
     model = tf.keras.models.Model(inputs=inputs, outputs=out)
     return model
-
-def build_network_tau(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True):
-    #the structure of the neural network
-    shape = (hp.nside2npix(nside), n_inputs)
-    inputs = tf.keras.layers.Input(shape)
-    # nside 16 -> 8
-    x=inputs
-    for k in range(4):
-        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
-    # dropout
-    x = tf.keras.layers.Dropout(drop)(x)
-    x = tf.keras.layers.Flatten()(x)
-    if one_layer==True:# depending on the state os one_layer i create a NN with one layer or with two layers
-        x = tf.keras.layers.Dense(n_layer_0)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(2)(x)
-    else:
-        x = tf.keras.layers.Dense(n_layer_1)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = tf.keras.layers.Dropout(drop)(x)
-        x = tf.keras.layers.Dense(n_layer_2)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(1)(x)
-    tf.keras.backend.clear_session()
-    model = tf.keras.models.Model(inputs=inputs, outputs=out)
-    return model
-
-def build_network_sigma(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True):
-    #the structure of the neural network
-    shape = (hp.nside2npix(nside), n_inputs)
-    inputs = tf.keras.layers.Input(shape)
-    # nside 16 -> 8
-    x=inputs
-    for k in range(4):
-        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
-    # dropout
-    x = tf.keras.layers.Dropout(drop)(x)
-    x = tf.keras.layers.Flatten()(x)
-    if one_layer==True:# depending on the state os one_layer i create a NN with one layer or with two layers
-        x = tf.keras.layers.Dense(n_layer_0)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(2)(x)
-    else:
-        x = tf.keras.layers.Dense(n_layer_1)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = tf.keras.layers.Dropout(drop)(x)
-        x = tf.keras.layers.Dense(n_layer_2)(x)
-        x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(1)(x)
-    tf.keras.backend.clear_session()
-    model = tf.keras.models.Model(inputs=inputs, outputs=out)
-    return model
+    

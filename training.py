@@ -22,8 +22,8 @@ np.random.seed(seed_train)# i set a random seed for the generation of the maps f
 
 #map gen
 nside = 16
-n_train=100000 #the total number of training+validation pair of maps that i will generate
-n_train_fix=40000 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
+n_train=100 #the total number of training+validation pair of maps that i will generate
+n_train_fix=100 #the total number of of training maps i will spread on all the r interval -> for each r value i generate n_train_fix/len(r) maps 
 kind_of_map="EE"
 n_channels=2
 pol=2
@@ -79,22 +79,28 @@ noise_maps=uf.generate_noise_maps(n_train,n_channels,nside,pol=2,sensitivity=sen
 
 noise_E,noise_B=uf.convert_to_EB(noise_maps)
 
-maps_per_cl_gen=uf.maps_per_cl(distribution=1)
+maps_per_cl_gen=uf.maps_per_cl(distribution=0)
 maps_per_cl=maps_per_cl_gen.compute_maps_per_cl(r,n_train,n_train_fix)
 
 mappe_B,y_r=uf.generate_maps(data, r,n_train=n_train,nside=nside, map_per_cl=maps_per_cl, 
-                             noise_maps=noise_E, beam_w=2*res, kind_of_map=kind_of_map, raw=0 , n_channels=n_channels,beam_yes=1 , verbose=0)
+                             noise_maps=noise_E, beam_w=2*res, kind_of_map=kind_of_map, 
+                             raw=0 , n_channels=n_channels,beam_yes=1 , verbose=0)
 
 x_train,y_train,x_val,y_val = nuf.prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,maps_per_cl
                                                , batch_size, batch_ordering=True)
 
 np.savez(base_dir+"check_r_distribution",y_train=y_train,y_val=y_val) 
 
-model=nuf.build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer)
+#rand_indexes=np.random.randint(0,len(y_train)-1,10000)
+
+#np.savez(base_dir+"check_train_maps",y_train=y_train[rand_indexes], x_train=x_train[rand_indexes])
+
+model=nuf.build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer,
+                        num_output=2,use_normalization=[False,True],use_drop=False)
 
 history=nuf.compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, 
                             stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, 
-                            loss_training,lr,metrics,shuffle=shuffle, verbose=2)
+                            loss_training,lr,metrics,shuffle=shuffle, verbose=2,callbacks=[True,True,False,False])
 
 print('Saving model to disk')
 model.save(base_dir+'test_model')

@@ -11,10 +11,9 @@ import useful_functions as uf
 from loss_functions import sigma_loss, sigma2_loss,sigma_batch_loss,sigma_norm_loss,sigma_log_loss,mse_tau,mse_sigma, mse_batch, sigma_f_loss
 import math
 
-def normalize_data(x,y):
-    '''y is the array i use to normalize x'''
-    std=np.std(y)
-    mean=np.mean(y)
+def normalize_data(x):
+    std=np.std(x)
+    mean=np.mean(x)
     return (x-mean)/std
 def denormalize_data(x,y):
     '''y is the non normalized array you had at the beginning'''

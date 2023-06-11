@@ -313,11 +313,9 @@ def check_y(y_train):
 
 def running_average(y,y_count,y_red):
     y_average=[]
-    index=0
     for i in range(len(y_red)):
         mean=0
         for j in range(y_count[i]):
-            mean+=y[index+j]/y_count[i]
+            mean+=y[j]/y_count[i]
         y_average.append(mean)
-        index+=y_count[i]
     return y_average

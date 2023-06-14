@@ -309,13 +309,13 @@ def check_y(y_train):
             y_red.append(y_train[i-1])
         else:
             pass
-    return y_count, y_red 
+    return np.asarray(y_count).flatten(), np.asarray(y_red).flatten() 
 
 def running_average(y,y_count,y_red):
     y_average=[]
+    index=0
     for i in range(len(y_red)):
-        mean=0
-        for j in range(y_count[i]):
-            mean+=y[j]/y_count[i]
+        mean=np.mean(y[index:index+y_count[i]])
         y_average.append(mean)
-    return y_average
+        index+=y_count[i]
+    return np.asarray(y_average).flatten()

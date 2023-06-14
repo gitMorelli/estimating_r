@@ -11,9 +11,10 @@ import useful_functions as uf
 from loss_functions import sigma_loss, sigma2_loss,sigma_batch_loss,sigma_norm_loss,sigma_log_loss,mse_tau,mse_sigma, mse_batch, sigma_f_loss
 import math
 
-def normalize_data(x):
-    std=np.std(x)
-    mean=np.mean(x)
+def normalize_data(x,y):
+    '''y is the array i use to normalize x'''
+    std=np.std(y)
+    mean=np.mean(y)
     return (x-mean)/std
 def denormalize_data(x,y):
     '''y is the non normalized array you had at the beginning'''
@@ -71,7 +72,7 @@ def prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,map_per_cl, batch_size,b
         #notice that there is no need to sort the validation dataset
     return x_train,y_train,x_val,y_val
 
-def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True]): # function to compile and run the model
+def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True],append=False): # function to compile and run the model
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor=stopping_monitor,
                                                       patience=p_stopping,
                                                       mode='min')
@@ -81,7 +82,7 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
                                                      patience=p_reduce)
     #this callback reduce the lr if the monitor metric doesn't get better in p_reduce epochs
     
-    csv_logger=tf.keras.callbacks.CSVLogger(base_dir+'log', separator=" ", append=False)
+    csv_logger=tf.keras.callbacks.CSVLogger(base_dir+'log', separator=" ", append=append)
     #this callback print the value of the loss and metrics of each epoch to a log file
     
     checkpoint_filepath = base_dir+'checkpoints/saved-weights-{epoch:02d}-{val_loss:.5f}.hdf5' 
@@ -90,10 +91,10 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
         save_weights_only=True, save_freq='epoch',save_best_only=False)
     #this callback save the weights of the model at each epoch of the training and save them in .hdf5 files
     callbacks_all=[early_stopping,reduce_lr,csv_logger,model_checkpoint_callback]
-    callbacks=[]
+    callbacks_selected=[]
     for i,c in enumerate(callbacks):
         if c:
-            callbacks.append(callbacks_all[i])
+            callbacks_selected.append(callbacks_all[i])
         
     model.compile(loss=loss_training,
                   optimizer=tf.optimizers.Adam(learning_rate=lr),
@@ -102,21 +103,23 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
     history = model.fit(x=x_train, y=y_train, 
                             batch_size=batch_size, epochs=max_epochs,
                             validation_data=(x_val, y_val),
-                            callbacks=callbacks,shuffle=shuffle,verbose=verbose)
+                            callbacks=callbacks_selected,shuffle=shuffle,verbose=verbose)
     return history
 
-def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True,num_output=2,use_normalization=[False,False],use_drop=False,trainable=[True,True]):
+def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True,num_output=2,use_normalization=[False,False,False],use_drop=False,trainable=[True,True]):
     #the structure of the neural network
     shape = (hp.nside2npix(nside), n_inputs)
     inputs = tf.keras.layers.Input(shape)
     # nside 16 -> 8
     x=inputs
+    if use_normalization[0]:
+        x = tf.keras.layers.Normalization()(x,training=True)
     for k in range(4):
         x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9,trainable=trainable[0])(x)
         if use_drop:
              x = tf.keras.layers.dropout(drop)(x)
-        if use_normalization[0]:
-            x = tf.keras.layers.BatchNormalization()(x)
+        if use_normalization[1]:
+            x = tf.keras.layers.BatchNormalization()(x,training=True)
         x = tf.keras.layers.Activation('relu')(x)
         x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
     # dropout
@@ -124,19 +127,19 @@ def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=Tr
     x = tf.keras.layers.Flatten()(x)
     if one_layer==True:# depending on the state os one_layer i create a NN with one layer or with two layers
         x = tf.keras.layers.Dense(n_layer_0,trainable = trainable[1])(x)
-        if use_normalization[0]:
-            x = tf.keras.layers.BatchNormalization()(x)
+        if use_normalization[2]:
+            x = tf.keras.layers.BatchNormalization()(x,training=True)
         x = tf.keras.layers.Activation('relu')(x)
         out = tf.keras.layers.Dense(num_output)(x)
     else:
         x = tf.keras.layers.Dense(n_layer_1,trainable = trainable[1])(x)
-        if use_normalization[0]:
-            x = tf.keras.layers.BatchNormalization()(x)
+        if use_normalization[2]:
+            x = tf.keras.layers.BatchNormalization()(x,training=True)
         x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Dropout(drop)(x)
         x = tf.keras.layers.Dense(n_layer_2,trainable = trainable[1])(x)
-        if use_normalization[0]:
-            x = tf.keras.layers.BatchNormalization()(x)
+        if use_normalization[2]:
+            x = tf.keras.layers.BatchNormalization()(x,training=True)
         x = tf.keras.layers.Activation('relu')(x)
         out = tf.keras.layers.Dense(num_output)(x)
     tf.keras.backend.clear_session()

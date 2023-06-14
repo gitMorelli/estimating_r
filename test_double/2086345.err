@@ -1,0 +1,24 @@
+openmpi/4.0.5-cuda10.2(12):ERROR:151: Module 'openmpi/4.0.5-cuda10.2' depends on one of the module(s) 'cuda/10.2'
+openmpi/4.0.5-cuda10.2(12):ERROR:102: Tcl command execution failed: prereq cuda/10.2
+
+Currently Loaded Modulefiles:
+  1) cuda/11.4   2) cudnn/8.2
+2023-06-14 18:22:15.595768: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-06-14 18:22:16.768090: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer.so.7'; dlerror: libnvinfer.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /opt/nvidia/cudnn-8.2/lib64:/opt/nvidia/cuda-11.4/lib64:/opt/nvidia/cuda-11.4/extras/CUPTI/lib64
+2023-06-14 18:22:16.768328: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer_plugin.so.7'; dlerror: libnvinfer_plugin.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /opt/nvidia/cudnn-8.2/lib64:/opt/nvidia/cuda-11.4/lib64:/opt/nvidia/cuda-11.4/extras/CUPTI/lib64
+2023-06-14 18:22:16.768346: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Cannot dlopen some TensorRT libraries. If you would like to use Nvidia GPU with TensorRT, please make sure the missing libraries mentioned above are installed properly.
+2023-06-14 18:22:18.589787: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-06-14 18:22:19.133360: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1613] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10784 MB memory:  -> device: 0, name: Tesla K80, pci bus id: 0000:06:00.0, compute capability: 3.7
+2023-06-14 18:22:21.659319: I tensorflow/compiler/xla/stream_executor/cuda/cuda_dnn.cc:428] Loaded cuDNN version 8204
+2023-06-14 18:22:22.396902: I tensorflow/compiler/xla/service/service.cc:173] XLA service 0x7f0b7e81f830 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+2023-06-14 18:22:22.396954: I tensorflow/compiler/xla/service/service.cc:181]   StreamExecutor device (0): Tesla K80, Compute Capability 3.7
+2023-06-14 18:22:22.402552: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:268] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+2023-06-14 18:22:22.550706: I tensorflow/compiler/jit/xla_compilation_cache.cc:477] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+WARNING:absl:Found untraced functions such as _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op, _jit_compiled_convolution_op while saving (showing 4 of 4). These functions will not be directly callable after loading.
+Traceback (most recent call last):
+  File "/home/amorelli/pipeline/test_double/training.py", line 130, in <module>
+    hyperparameters["name"]=name
+NameError: name 'name' is not defined
+srun: error: node02: task 0: Exited with exit code 1

@@ -1,0 +1,34 @@
+openmpi/4.0.5-cuda10.2(12):ERROR:151: Module 'openmpi/4.0.5-cuda10.2' depends on one of the module(s) 'cuda/10.2'
+openmpi/4.0.5-cuda10.2(12):ERROR:102: Tcl command execution failed: prereq cuda/10.2
+
+Currently Loaded Modulefiles:
+  1) cuda/11.4   2) cudnn/8.2
+2023-06-14 18:15:51.003655: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-06-14 18:15:52.169061: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer.so.7'; dlerror: libnvinfer.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /opt/nvidia/cudnn-8.2/lib64:/opt/nvidia/cuda-11.4/lib64:/opt/nvidia/cuda-11.4/extras/CUPTI/lib64
+2023-06-14 18:15:52.169344: W tensorflow/compiler/xla/stream_executor/platform/default/dso_loader.cc:64] Could not load dynamic library 'libnvinfer_plugin.so.7'; dlerror: libnvinfer_plugin.so.7: cannot open shared object file: No such file or directory; LD_LIBRARY_PATH: /opt/nvidia/cudnn-8.2/lib64:/opt/nvidia/cuda-11.4/lib64:/opt/nvidia/cuda-11.4/extras/CUPTI/lib64
+2023-06-14 18:15:52.169361: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Cannot dlopen some TensorRT libraries. If you would like to use Nvidia GPU with TensorRT, please make sure the missing libraries mentioned above are installed properly.
+2023-06-14 18:15:53.973803: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2023-06-14 18:15:54.515245: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1613] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 10785 MB memory:  -> device: 0, name: Tesla K80, pci bus id: 0000:06:00.0, compute capability: 3.7
+Traceback (most recent call last):
+  File "/home/amorelli/pipeline/test_double/training.py", line 117, in <module>
+    history=nuf.compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, 
+  File "/home/amorelli/pipeline/test_double/NN_functions.py", line 103, in compile_and_fit
+    history = model.fit(x=x_train, y=y_train, 
+  File "/home/amorelli/.conda/envs/camb/lib/python3.9/site-packages/keras/utils/traceback_utils.py", line 70, in error_handler
+    raise e.with_traceback(filtered_tb) from None
+  File "/tmp/__autograph_generated_file37j6ae2h.py", line 15, in tf__train_function
+    retval_ = ag__.converted_call(ag__.ld(step_function), (ag__.ld(self), ag__.ld(iterator)), None, fscope)
+  File "/tmp/__autograph_generated_filefpi7ppp_.py", line 11, in tf__sigma_loss
+    sigma = ag__.ld(y_pred)[:, 1]
+ValueError: in user code:
+
+    File "/home/amorelli/.conda/envs/camb/lib/python3.9/site-packages/keras/engine/training.py", line 1249, in train_function  *
+        return step_function(self, iterator)
+    File "/home/amorelli/pipeline/test_double/loss_functions.py", line 13, in sigma_loss  *
+        sigma = y_pred[:,1]
+
+    ValueError: slice index 1 of dimension 1 out of bounds. for '{{node strided_slice_3}} = StridedSlice[Index=DT_INT32, T=DT_FLOAT, begin_mask=1, ellipsis_mask=0, end_mask=1, new_axis_mask=0, shrink_axis_mask=2](model/dense_1/BiasAdd, strided_slice_3/stack, strided_slice_3/stack_1, strided_slice_3/stack_2)' with input shapes: [16,1], [2], [2], [2] and with computed input tensors: input[1] = <0 1>, input[2] = <0 2>, input[3] = <1 1>.
+
+srun: error: node02: task 0: Exited with exit code 1

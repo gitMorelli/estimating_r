@@ -75,8 +75,8 @@ for i in range(n_maps):
         # freq_maps[j,i,1]=noise_maps[i,j]+sync_freq_maps[i,1]+QU_maps[j,:,0]
         # freq_maps[j,i,2]=noise_maps[i,j]+sync_freq_maps[i,2]+QU_maps[j,:,1]
         for k in range(n_channels):
-            freq_maps[k,i,j,0,:]=noise_maps[j,i,:,k]+sync_freq_maps[j,1]+QU_maps[i,:,k*n_channels]
-            freq_maps[k,i,j,1,:]=noise_maps[j,i,:,k]+sync_freq_maps[j,2]+QU_maps[i,:,k*n_channels+1]
+            freq_maps[k,i,j,0,:]=noise_maps[j,i,:,k*n_channels]+sync_freq_maps[j,1]+QU_maps[i,:,k*n_channels]
+            freq_maps[k,i,j,1,:]=noise_maps[j,i,:,k*n_channels+1]+sync_freq_maps[j,2]+QU_maps[i,:,k*n_channels+1]
 
 result = np.ones(shape=(n_maps,n_pix,n_channels*pol))
 #result = np.ones(shape=(n_maps,3,n_pix))

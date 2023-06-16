@@ -171,9 +171,9 @@ def generate_noise_maps(n_train,n_channels,nside,pol=1,sensitivity=0,input_files
         mu, sigma = 0, sensitivity*np.deg2rad(1./60.)/res
         for i in range(n_train):
             for k in range(n_channels):
-                rumore=np.random.normal(mu, sigma, n_pix) #noise is taken to be the same on Q and U
                 for p in range(pol):
-                    noise[i,:,k*pol+p]=rumore
+                    noise[i,:,k*pol+p]=np.random.normal(mu, sigma, n_pix) #noise is same amplitude but different for Q and U 
+                    #and for the channels
         return noise 
     else:
         f_ = [np.load(input_file) for input_file in input_files]

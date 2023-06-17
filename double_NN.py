@@ -24,6 +24,7 @@ import os, shutil
 
 seed_train=400
 np.random.seed(seed_train)# i set a random seed for the generation of the maps for reproducibility
+tf.random.set_seed(seed_train)
 
 #map gen
 nside = 16

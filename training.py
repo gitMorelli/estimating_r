@@ -19,6 +19,7 @@ import os, shutil
 
 seed_train=40
 np.random.seed(seed_train)# i set a random seed for the generation of the maps for reproducibility
+tf.random.set_seed(seed_train)#the seed for tensorflow operation is different from the seed for numpy operations
 
 #map gen
 nside = 16

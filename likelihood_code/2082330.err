@@ -1,0 +1,10 @@
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:116: RuntimeWarning: invalid value encountered in double_scalars
+  meanr = np.sum(probover*rover)/np.sum(probover) # i compute directly the mean on the set of discrete points (i don't do the integral)
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:118: RuntimeWarning: invalid value encountered in double_scalars
+  sigmar = np.sqrt(np.sum(probover*rover**2)/np.sum(probover) - meanr**2)
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:118: RuntimeWarning: invalid value encountered in sqrt
+  sigmar = np.sqrt(np.sum(probover*rover**2)/np.sum(probover) - meanr**2)
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** STEP 2082330.0 ON node04 CANCELLED AT 2023-05-23T17:06:03 DUE TO TIME LIMIT ***
+slurmstepd: error: *** JOB 2082330 ON node04 CANCELLED AT 2023-05-23T17:06:03 DUE TO TIME LIMIT ***
+srun: error: node04: task 0: Terminated

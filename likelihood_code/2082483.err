@@ -1,0 +1,6 @@
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:117: RuntimeWarning: invalid value encountered in double_scalars
+  meanr = np.sum(probover*rover)/np.sum(probover) # i compute directly the mean on the set of discrete points (i don't do the integral)
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:119: RuntimeWarning: invalid value encountered in double_scalars
+  sigmar = np.sqrt(np.sum(probover*rover**2)/np.sum(probover) - meanr**2)
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:119: RuntimeWarning: invalid value encountered in sqrt
+  sigmar = np.sqrt(np.sum(probover*rover**2)/np.sum(probover) - meanr**2)

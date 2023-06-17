@@ -1,0 +1,11 @@
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:116: RuntimeWarning: invalid value encountered in double_scalars
+  meanr = np.sum(probover*rover)/np.sum(probover) # i compute directly the mean on the set of discrete points (i don't do the integral)
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:118: RuntimeWarning: invalid value encountered in double_scalars
+  sigmar = np.sqrt(np.sum(probover*rover**2)/np.sum(probover) - meanr**2)
+/home/amorelli/likelihood_code/likelihood_BB_from_map.py:118: RuntimeWarning: invalid value encountered in sqrt
+  sigmar = np.sqrt(np.sum(probover*rover**2)/np.sum(probover) - meanr**2)
+Traceback (most recent call last):
+  File "/home/amorelli/likelihood_code/likelihood_BB_from_map.py", line 123, in <module>
+    npz_dict[f"sigma_{r_like[i]}"]=sigma
+NameError: name 'r_like' is not defined
+srun: error: node04: task 0: Exited with exit code 1

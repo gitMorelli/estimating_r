@@ -72,7 +72,29 @@ def prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,map_per_cl, batch_size,b
         #notice that there is no need to sort the validation dataset
     return x_train,y_train,x_val,y_val
 
-def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True],append=False): # function to compile and run the model
+def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True,False],append=False,n_optimizer=0): # function to compile and run the model
+    '''
+    model, x_train,y_train,x_val,y_val,batch_size, max_epochs
+    stopping_monitor: the metric used in the call to early stopping
+    p_stopping: the number of epochs after which the training stops if there is no improvement
+    reduce_monitor: the metric used in the call to reducelr
+    f_reduce: the factor to use in f_reduce or the factor to use in lr_schedule depending on the callbacks i consider
+    p_reduce: the number of epochs after which the lr is reduced if there is no improvement - the period passed to the lr_schedule
+        depending on the callbacks i consider
+    base_dir: directory for saving checkpoints, log and test
+    loss_training: the loss function to use for the training
+    lr: the initial learning rate
+    metrics: the metrics i want to compute during training
+    shuffle: if true the training set is shuffled before the call to fit
+    verbose: 2 for minimal, 0 for no verbose
+    callbacks: list of booleans, if the boolean is true the corresponding callback is activated
+        [early_stopping,reduce_lr,csv_logger,model_checkpoint_callback,increase_lr]
+    append: if true the new data are appended to the log file. If not the log is owerwritten
+    n_optimizer: a number that determines which optimizer to use
+        0 = tf.optimizers.Adam(learning_rate=lr)
+        1= tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9,
+ nesterov=True)
+    '''
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor=stopping_monitor,
                                                       patience=p_stopping,
                                                       mode='min')
@@ -90,14 +112,27 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
         filepath=checkpoint_filepath,
         save_weights_only=True, save_freq='epoch',save_best_only=False)
     #this callback save the weights of the model at each epoch of the training and save them in .hdf5 files
-    callbacks_all=[early_stopping,reduce_lr,csv_logger,model_checkpoint_callback]
+    
+    def lr_schedule(factor,period):
+        def lr_schedule_in(epoch,lr):
+            if epoch%period==0:
+                return lr * factor
+            else:
+                return lr
+        return lr_schedule_in
+    lr_function = lr_schedule(lr0=lr, period=p_reduce)
+    increase_lr=tf.keras.callbacks.LearningRateScheduler(lr_function)
+    
+    callbacks_all=[early_stopping,reduce_lr,csv_logger,model_checkpoint_callback,increase_lr]
     callbacks_selected=[]
     for i,c in enumerate(callbacks):
         if c:
             callbacks_selected.append(callbacks_all[i])
-        
+    
+    optimizers=[tf.optimizers.Adam(learning_rate=lr),tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9,
+ nesterov=True)]
     model.compile(loss=loss_training,
-                  optimizer=tf.optimizers.Adam(learning_rate=lr),
+                  optimizer=optimizers[n_optimizer],
                   metrics=metrics)
     #i define the loss function, optimizer and metrics that i am using in the training
     history = model.fit(x=x_train, y=y_train, 
@@ -106,42 +141,48 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
                             callbacks=callbacks_selected,shuffle=shuffle,verbose=verbose)
     return history
 
-def build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer=True,num_output=2,use_normalization=[False,False,False],use_drop=False,trainable=[True,True]):
-    #the structure of the neural network
+def build_network(n_inputs,nside,n_layers=1,layer_nodes=[48],num_output=2,use_normalization=[False,False,False],use_drop=[False,True],drop=[0.2,0.2],use_relu="false",activation_dense="relu",kernel_initializer=["glorot_uniform","glorot_uniform"]):
+    '''
+    n_inputs tell how many channels i consider
+    nside is the nside of the input maps
+    n_layers is the number of fully connected layers at the end of the network
+    layer_nodes is a list of the number of nodes each dense layer has
+    num output is the number of outputs of the NN
+    use normalization: if first value is true -> input is batch normalized, if second is true -> batch normalization in cnn
+        if third is true -> batch normalization in dense part
+    use_drop: if first is true use dropout in cnn, if second is true use dropout in dense part
+    drop: is the dropout rate i consider in the network. drop[0] for cnn, drop[1] for dense
+    use_relu: if true add relu activation in CNN
+    activation_dense: select the activation function to use in the dense part -> relu, swish, ..
+    kernel_initializer: kernel_in[0] is the initializer for the cnn layers, kernel_in[1] is the initializer for the dense layers.
+        you can use glorot_normal, he_normal
+    '''
     shape = (hp.nside2npix(nside), n_inputs)
     inputs = tf.keras.layers.Input(shape)
-    # nside 16 -> 8
     x=inputs
     if use_normalization[0]:
-        x = tf.keras.layers.Normalization()(x,training=True)
+        x = tf.keras.layers.Normalization()(x)
     for k in range(4):
-        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9,trainable=trainable[0])(x)
-        if use_drop:
-             x = tf.keras.layers.dropout(drop)(x)
+        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9, kernel_initializer=kernel_initializer[0])(x) #or "he_normal"
+        if use_drop[0]:
+             x = tf.keras.layers.dropout(drop[0])(x)
         if use_normalization[1]:
-            x = tf.keras.layers.BatchNormalization()(x,training=True)
+            x = tf.keras.layers.BatchNormalization()(x)
+        if use_relu:
+            x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Activation('relu')(x)
         x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
     # dropout
     x = tf.keras.layers.Dropout(drop)(x)
     x = tf.keras.layers.Flatten()(x)
-    if one_layer==True:# depending on the state os one_layer i create a NN with one layer or with two layers
-        x = tf.keras.layers.Dense(n_layer_0,trainable = trainable[1])(x)
+    for i in range(n_layers):
+        x = tf.keras.layers.Dense(layer_nodes[i],kernel_initializer=kernel_initializer[1])(x)
+        if use_drop[1]:
+             x = tf.keras.layers.dropout(drop[1])(x)
         if use_normalization[2]:
-            x = tf.keras.layers.BatchNormalization()(x,training=True)
-        x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(num_output)(x)
-    else:
-        x = tf.keras.layers.Dense(n_layer_1,trainable = trainable[1])(x)
-        if use_normalization[2]:
-            x = tf.keras.layers.BatchNormalization()(x,training=True)
-        x = tf.keras.layers.Activation('relu')(x)
-        x = tf.keras.layers.Dropout(drop)(x)
-        x = tf.keras.layers.Dense(n_layer_2,trainable = trainable[1])(x)
-        if use_normalization[2]:
-            x = tf.keras.layers.BatchNormalization()(x,training=True)
-        x = tf.keras.layers.Activation('relu')(x)
-        out = tf.keras.layers.Dense(num_output)(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+        x = tf.keras.layers.Activation(activation_dense)(x) #could be relu or swish or other
+    out = tf.keras.layers.Dense(num_output, kernel_initializer=kernel_initializer[1])(x)
     tf.keras.backend.clear_session()
     model = tf.keras.models.Model(inputs=inputs, outputs=out)
     return model

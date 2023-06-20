@@ -41,13 +41,12 @@ f_reduce=0.5
 stopping_monitor="val_loss"
 reduce_monitor="val_loss"
 metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss, mse_batch]# these are the different loss functions i have used. I use them as metrics
+#tf.keras.losses.MeanSquaredError()
 
 #network structure
-one_layer=True # this is to switch between one dense layer or two dense layer
 drop=0.2
-n_layer_0=48
-n_layer_1=64
-n_layer_2=16
+n_layers=1
+nodes_per_layer=[48,256,256]
 if kind_of_map!="QU": 
     n_inputs=n_channels
 else:
@@ -113,12 +112,15 @@ if map_norm:
             x=x_val[i,:,j]
             x_val[i,:,j]=nuf.normalize_data(x,x)
 
-model=nuf.build_network(n_inputs,nside,drop,n_layer_0,n_layer_1,n_layer_2,one_layer,
-                        num_output=n_output,use_normalization=[False,False,False],use_drop=False)
+model=nuf.build_network(n_inputs,nside,n_layers=1,layer_nodes=nodes_per_layer,
+                        num_output=n_output,use_normalization=[False,False,False],
+                        use_drop=[False,True],drop=[drop,drop],use_relu="false",
+                        activation_dense="relu",kernel_initializer=["glorot_uniform","glorot_uniform"])
 
 history=nuf.compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, 
                             stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, 
-                            loss_training,lr,metrics,shuffle=shuffle, verbose=2,callbacks=[True,True,True,True])
+                            loss_training,lr,metrics,shuffle=shuffle, verbose=2,callbacks=[True,True,True,True,False],n_optimizer=0)
+#early_stopping,reduce_lr,csv_logger,model_checkpoint_callback
 
 print('Saving model to disk')
 model.save(base_dir+'test_model')
@@ -138,11 +140,11 @@ hyperparameters["f_reduce"]=f_reduce
 hyperparameters["stop-reduce"]=stopping_monitor+"-"+reduce_monitor
 hyperparameters["lr"]=lr
 hyperparameters["batch_size"]=batch_size
-hyperparameters["n_layers"]=one_layer
-if one_layer:
-    hyperparameters["nodes_layers"]=n_layer_0
-else:
-    hyperparameters["nodes_layers"]=str(n_layer_1)+"-"+str(n_layer_2)
+hyperparameters["n_layers"]=n_layers
+nodes_string=""
+for nodes in nodes_per_layer:
+    nodes_string+=str(nodes)+"-"
+hyperparameters["nodes_per_layer"]=nodes_string
 hyperparameters["comments"]=" "
 hyperparameters = {k:[v] for k,v in hyperparameters.items()}
 output=pd.DataFrame(hyperparameters)

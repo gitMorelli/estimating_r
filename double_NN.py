@@ -3,7 +3,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-#i import the necessary libraries
 import sys
 import h5py
 import numpy as np
@@ -132,19 +131,34 @@ else:
     y_train_sigma=(predictions_train-y_train)**2 
     y_val_sigma=(predictions_val-y_val)**2 
     red=None
+
 model_sigma=model_tau
+#print(model_sigma.summary())
+#print(model_sigma.layers[-3].get_weights()[0].shape)
+
+from tensorflow.keras import initializers
 model_sigma.trainable=True
 set_layer=False
+#print(model_sigma.layers[-3].get_weights()[0][0])
 for layer in model_sigma.layers:
     if layer.name == "flatten":
         set_layer=True
     if set_layer:
         layer.trainable = True
+        if isinstance(layer, keras.layers.Dense):
+            w_shape,b_shape = (layer.get_weights()[0].shape,layer.get_weights()[1].shape)
+            w_initializer = tf.keras.initializers.GlorotUniform()
+            w_values = w_initializer(shape=w_shape)
+            b_initializer = tf.keras.initializers.Zeros()
+            b_values = b_initializer(shape=b_shape)
+            layer.set_weights([w_values,b_values])
     else:
         layer.trainable = False
+#print(model_sigma.layers[-3].get_weights()[0][0])
 nuf.compile_and_fit(model_sigma, x_train, y_train_sigma, x_val, y_val_sigma, batch_size, max_epochs[0], stopping_monitor,p_stopping[0],
                     reduce_monitor,f_reduce[0], p_reduce[0],base_dir, 
-                    loss_training,lr[0],metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True],append=False)
+                    loss_training,lr[0],metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True,False],append=False,n_optimizer=0)
+
 model_sigma.trainable=True
 set_layer=False
 for layer in model_sigma.layers:
@@ -156,7 +170,8 @@ for layer in model_sigma.layers:
         layer.trainable = False
 nuf.compile_and_fit(model_sigma, x_train, y_train_sigma, x_val, y_val_sigma, batch_size, max_epochs[1], stopping_monitor,p_stopping[1],
                     reduce_monitor,f_reduce[1], p_reduce[1],base_dir, 
-                    loss_training,lr[1],metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True],append=True)
+                    loss_training,lr[1],metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True,False],append=True,n_optimizer=0)
 predictions_sigma=model_sigma.predict(x_train)
 np.savez(base_dir+"predictions",y_train=y_train_sigma, pred=predictions_sigma, norm=red)
 model_sigma.save(base_dir+'test_model_sigma')
+

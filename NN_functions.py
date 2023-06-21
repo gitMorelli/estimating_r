@@ -99,6 +99,11 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
                                                       patience=p_stopping,
                                                       mode='min')
     #this callback stops the training if the monitor metric doesn't get better in p_stopping epochs
+    f_schedule=f_reduce
+    if(f_reduce>=1):
+        f_reduce=0.01
+    else:
+        pass
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor=reduce_monitor, 
                                                      factor=f_reduce,
                                                      patience=p_reduce)
@@ -120,7 +125,7 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
             else:
                 return lr
         return lr_schedule_in
-    lr_function = lr_schedule(lr0=lr, period=p_reduce)
+    lr_function = lr_schedule(factor=f_schedule, period=p_reduce)
     increase_lr=tf.keras.callbacks.LearningRateScheduler(lr_function)
     
     callbacks_all=[early_stopping,reduce_lr,csv_logger,model_checkpoint_callback,increase_lr]
@@ -141,7 +146,7 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
                             callbacks=callbacks_selected,shuffle=shuffle,verbose=verbose)
     return history
 
-def build_network(n_inputs,nside,n_layers=1,layer_nodes=[48],num_output=2,use_normalization=[False,False,False],use_drop=[False,True],drop=[0.2,0.2],use_relu="false",activation_dense="relu",kernel_initializer=["glorot_uniform","glorot_uniform"]):
+def build_network(n_inputs,nside,n_layers=1,layer_nodes=[48],num_output=2,use_normalization=[False,False,False],use_drop=[False,True,False],drop=[0.2,0.2,0.2],activation_dense="relu",kernel_initializer="glorot_uniform"):
     '''
     n_inputs tell how many channels i consider
     nside is the nside of the input maps
@@ -151,11 +156,11 @@ def build_network(n_inputs,nside,n_layers=1,layer_nodes=[48],num_output=2,use_no
     use normalization: if first value is true -> input is batch normalized, if second is true -> batch normalization in cnn
         if third is true -> batch normalization in dense part
     use_drop: if first is true use dropout in cnn, if second is true use dropout in dense part
-    drop: is the dropout rate i consider in the network. drop[0] for cnn, drop[1] for dense
+    drop: is the dropout rate i consider in the network. drop[0] for cnn, drop[2] for dense. drop[1] for drop between con and dense
     use_relu: if true add relu activation in CNN
     activation_dense: select the activation function to use in the dense part -> relu, swish, ..
-    kernel_initializer: kernel_in[0] is the initializer for the cnn layers, kernel_in[1] is the initializer for the dense layers.
-        you can use glorot_normal, he_normal
+    kernel_initializer: is the initializer for the dense layers.
+        you can use glorot_uniform, glorot_normal, he_normal
     '''
     shape = (hp.nside2npix(nside), n_inputs)
     inputs = tf.keras.layers.Input(shape)
@@ -163,26 +168,25 @@ def build_network(n_inputs,nside,n_layers=1,layer_nodes=[48],num_output=2,use_no
     if use_normalization[0]:
         x = tf.keras.layers.Normalization()(x)
     for k in range(4):
-        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9, kernel_initializer=kernel_initializer[0])(x) #or "he_normal"
+        x = nnhealpix.layers.ConvNeighbours(nside//2**k, filters=32, kernel_size=9)(x) #or "he_normal"
         if use_drop[0]:
-             x = tf.keras.layers.dropout(drop[0])(x)
+             x = tf.keras.layers.Dropout(drop[0])(x)
         if use_normalization[1]:
             x = tf.keras.layers.BatchNormalization()(x)
-        if use_relu:
-            x = tf.keras.layers.Activation('relu')(x)
         x = tf.keras.layers.Activation('relu')(x)
         x = nnhealpix.layers.Dgrade(nside//2**k, nside//2**(k+1))(x) # i use 4 convolutional layers, for each layer i decrease the number of pixels by 1/2
     # dropout
-    x = tf.keras.layers.Dropout(drop)(x)
+    if use_drop[1]:
+        x = tf.keras.layers.Dropout(drop[1])(x)
     x = tf.keras.layers.Flatten()(x)
     for i in range(n_layers):
-        x = tf.keras.layers.Dense(layer_nodes[i],kernel_initializer=kernel_initializer[1])(x)
-        if use_drop[1]:
-             x = tf.keras.layers.dropout(drop[1])(x)
+        x = tf.keras.layers.Dense(layer_nodes[i],kernel_initializer=kernel_initializer)(x)
+        if use_drop[2]:
+             x = tf.keras.layers.Dropout(drop[1])(x)
         if use_normalization[2]:
             x = tf.keras.layers.BatchNormalization()(x)
         x = tf.keras.layers.Activation(activation_dense)(x) #could be relu or swish or other
-    out = tf.keras.layers.Dense(num_output, kernel_initializer=kernel_initializer[1])(x)
+    out = tf.keras.layers.Dense(num_output, kernel_initializer=kernel_initializer)(x)
     tf.keras.backend.clear_session()
     model = tf.keras.models.Model(inputs=inputs, outputs=out)
     return model

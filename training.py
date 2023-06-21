@@ -44,7 +44,11 @@ metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss, mse_batch
 #tf.keras.losses.MeanSquaredError()
 
 #network structure
-drop=0.2
+drop=[0.2,0.2,0.2]
+activation_dense="relu"
+kernel_initializer="glorot_uniform"
+use_drop=[False,True]
+use_normalization=[False,False,False]
 n_layers=1
 nodes_per_layer=[48,256,256]
 if kind_of_map!="QU": 
@@ -65,6 +69,9 @@ norm=True
 map_norm=True
 batch_ordering=True
 distr=0
+n_optimizer=0
+callbacks=[True,True,True,True,False]
+#[early_stopping,reduce_lr,csv_logger,model_checkpoint_callback,increase_lr]
 
 f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_001_seed=67.npz') 
 #print("outfile_R:",f_.files) #give the keiwords for the stored arrays
@@ -112,14 +119,14 @@ if map_norm:
             x=x_val[i,:,j]
             x_val[i,:,j]=nuf.normalize_data(x,x)
 
-model=nuf.build_network(n_inputs,nside,n_layers=1,layer_nodes=nodes_per_layer,
-                        num_output=n_output,use_normalization=[False,False,False],
-                        use_drop=[False,True],drop=[drop,drop],use_relu="false",
-                        activation_dense="relu",kernel_initializer=["glorot_uniform","glorot_uniform"])
+model=nuf.build_network(n_inputs,nside,n_layers=n_layers,layer_nodes=nodes_per_layer,
+                        num_output=n_output,use_normalization=use_normalization,
+                        use_drop=use_drop,drop=drop,
+                        activation_dense=activation_dense,kernel_initializer=kernel_initializer)
 
 history=nuf.compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, 
                             stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, 
-                            loss_training,lr,metrics,shuffle=shuffle, verbose=2,callbacks=[True,True,True,True,False],n_optimizer=0)
+                            loss_training,lr,metrics,shuffle=shuffle, verbose=2,callbacks=callbacks,n_optimizer=n_optimizer)
 #early_stopping,reduce_lr,csv_logger,model_checkpoint_callback
 
 print('Saving model to disk')

@@ -97,7 +97,7 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
     '''
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor=stopping_monitor,
                                                       patience=p_stopping,
-                                                      mode='min')
+                                                      mode='min',verbose=1)
     #this callback stops the training if the monitor metric doesn't get better in p_stopping epochs
     f_schedule=f_reduce
     if(f_reduce>=1):
@@ -133,7 +133,6 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
     for i,c in enumerate(callbacks):
         if c:
             callbacks_selected.append(callbacks_all[i])
-    
     optimizers=[tf.optimizers.Adam(learning_rate=lr),tf.keras.optimizers.SGD(learning_rate=lr, momentum=0.9,
  nesterov=True)]
     model.compile(loss=loss_training,

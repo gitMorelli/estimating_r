@@ -47,7 +47,7 @@ metrics=[sigma_loss, sigma_batch_loss,mse_tau,mse_sigma, sigma_f_loss, mse_batch
 drop=[0.2,0.2,0.2]
 activation_dense="relu"
 kernel_initializer="glorot_uniform"
-use_drop=[False,True]
+use_drop=[False,True,False]
 use_normalization=[False,False,False]
 n_layers=1
 nodes_per_layer=[48,256,256]
@@ -73,17 +73,24 @@ n_optimizer=0
 callbacks=[True,True,True,True,False]
 #[early_stopping,reduce_lr,csv_logger,model_checkpoint_callback,increase_lr]
 
-f_ = np.load('/home/amorelli/cl_generator/outfile_R_000_001_seed=67.npz') 
-#print("outfile_R:",f_.files) #give the keiwords for the stored arrays
-labels=f_.files
-data=f_[labels[0]]
-r=f_[labels[1]]
+file_list=['/home/amorelli/cl_generator/outfile_R_000_001_seed=67.npz','/home/amorelli/cl_generator/outfile_R_000_001_seed=67.npz']
+f_ = [np.load(input_file) for input_file in file_list]
+r_holder=[]
+data_holder=[]
+for i,file in enumerate(f_):
+    labels=file.files
+    data_holder.append(file[labels[0]])
+    r_holder.append(file[labels[1]])
+r=np.concatenate(tuple([el for el in r_holder]), axis=0 )
+data=np.concatenate(tuple([el for el in data_holder]), axis=0 )
+del r_holder, data_holder
 r, data=uf.unison_sorted_copies(r, data)
+r_in=r[:]
 #indexes=np.linspace(0,len(r)-1,10,dtype=int)
 #r=r[indexes]
 #data=data[indexes]
 
-#input_folder="/home/amorelli/foreground_noise_maps/noise_generation"
+#input_folder="/home/amorelli/foreground_noise_maps/noise_maps_d1s1_train"
 #input_files=os.listdir(input_folder)
 #for i in range(len(input_files)):
    # input_files[i]=input_folder+"/"+input_files[i]
@@ -98,13 +105,24 @@ mappe_B,y_r=uf.generate_maps(data, r,n_train=n_train,nside=nside, map_per_cl=map
                              noise_maps=noise_maps, beam_w=2*res, kind_of_map=kind_of_map, 
                              raw=0 , n_channels=n_channels,beam_yes=1 , verbose=0)
 
+masking=False
+field=[0,2]
+mode=0
+if masking:
+    mappe_B=uf.mask_it(mappe_B,path="/home/amorelli/HFI_Mask_GalPlane-apo0_2048_R2.00.fits",
+                  field=field,nside_low=nside,nside_high=2048,mode=mode)
+    #masks: 0=20% , 1=40% , 2=60%, 3=70, 4=80, 5=90, 6=97, 7=99 20% means that 20% of sky is visible
+if mode==0:
+    n_inputs*=len(field)
+else:
+    pass
 
 x_train,y_train,x_val,y_val = nuf.prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,maps_per_cl
                                                , batch_size, batch_ordering=batch_ordering)
 
 if norm:
-    y_train=nuf.normalize_data(y_train,r)
-    y_val=nuf.normalize_data(y_val,r)
+    y_train=nuf.normalize_data(y_train,r_in)
+    y_val=nuf.normalize_data(y_val,r_in)
 np.savez(base_dir+"check_r_distribution",y_train=y_train,y_val=y_val) 
 #rand_indexes=np.random.randint(0,len(y_train)-1,10000)
 #np.savez(base_dir+"check_train_maps",y_train=y_train[rand_indexes], x_train=x_train[rand_indexes])
@@ -134,7 +152,7 @@ model.save(base_dir+'test_model')
 
 predictions=model.predict(x_train)
 
-np.savez(base_dir+"predictions",y_train=y_train, pred=predictions, norm=r)
+np.savez(base_dir+"predictions",y_train=y_train, pred=predictions, norm=r_in)
 
 #-----------------------------------------
 hyperparameters={}

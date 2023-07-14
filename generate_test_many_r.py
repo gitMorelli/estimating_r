@@ -49,4 +49,9 @@ for i in range(len(tau)):
                                 map_per_cl=maps_per_cl, kind_of_map="EE", raw=1 , n_channels=n_channels,beam_yes=1 , verbose=0)
     y_test[i*n_per_r:(i+1)*n_per_r]=y_tau
     x_test[i*n_per_r:(i+1)*n_per_r]=mappe
+masking=True
+if masking:
+    x_test=uf.mask_it(x_test,path="/home/amorelli/HFI_Mask_GalPlane-apo0_2048_R2.00.fits",
+                  field=1,nside_low=nside,nside_high=2048)
+    #masks: 0=20% , 1=40% , 2=60%, 3=70, 4=80, 5=90, 6=97, 7=99 20% means that 20% of sky is visible
 np.savez(outfile_name,x_test=x_test,y_test=y_test) 

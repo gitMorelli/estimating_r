@@ -72,7 +72,8 @@ def prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,map_per_cl, batch_size,b
         #notice that there is no need to sort the validation dataset
     return x_train,y_train,x_val,y_val
 
-def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True,False],append=False,n_optimizer=0): # function to compile and run the model
+def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epochs, stopping_monitor,p_stopping,reduce_monitor,f_reduce, p_reduce,base_dir, loss_training,lr,metrics,shuffle=True,verbose=2,callbacks=[True,True,True,True,False],append=False,n_optimizer=0): # function to compile and run the model 
+    #add cooldown to input
     '''
     model, x_train,y_train,x_val,y_val,batch_size, max_epochs
     stopping_monitor: the metric used in the call to early stopping
@@ -106,7 +107,7 @@ def compile_and_fit(model, x_train, y_train, x_val, y_val, batch_size, max_epoch
         pass
     reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor=reduce_monitor, 
                                                      factor=f_reduce,
-                                                     patience=p_reduce)
+                                                     patience=p_reduce) #add cooldown
     #this callback reduce the lr if the monitor metric doesn't get better in p_reduce epochs
     
     csv_logger=tf.keras.callbacks.CSVLogger(base_dir+'log', separator=" ", append=append)
@@ -163,7 +164,7 @@ def build_network(n_inputs,nside,n_layers=1,layer_nodes=[48],num_output=2,use_no
     '''
     shape = (hp.nside2npix(nside), n_inputs)
     inputs = tf.keras.layers.Input(shape)
-    x=inputs
+    x=inputs[:]
     if use_normalization[0]:
         x = tf.keras.layers.Normalization()(x)
     for k in range(4):

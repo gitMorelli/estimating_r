@@ -320,7 +320,7 @@ def running_average(y,y_count,y_red):
         index+=y_count[i]
     return np.asarray(y_average).flatten()
 
-def mask_it(mappe,path,field,nside_low=16,nside_high=2048,mode=0):
+def mask_it(mappe,path,field,nside_low=16,nside_high=2048,mode=0,custom=0):
     '''
     path is the folder in which the mask file is found
     field=[x,y, ..] where all elements are between 0 - 7 corresponding to
@@ -340,6 +340,9 @@ def mask_it(mappe,path,field,nside_low=16,nside_high=2048,mode=0):
         0 -> each input is masked with each of the masks in field -> [0,1] mode 0 means that if i have n_input maps the
         mask it function returns 2*n_input maps where half are 20% masked and half are 40% masked
         1 -> the masks in field are assigned at random to the input maps
+    custom:
+        0 -> map is taken from fits file
+        1 -> map is taken as np.array or list of arrays
     '''
     fill_value=0 #map_masked.fill_value
     n_train=mappe.shape[0]
@@ -349,7 +352,14 @@ def mask_it(mappe,path,field,nside_low=16,nside_high=2048,mode=0):
         new_channels=int(len(field)*channels)
         mappe_out=np.ones((n_train,npix,new_channels))
         for k in range(len(field)):
-            maschera = hp.read_map(path,field=field[k])
+            if custom==0:
+                maschera = hp.read_map(path,field=field[k])
+            else:
+                f_ = np.load(path) 
+                label=f_.files[field[k]]
+                maschera = f_[label]
+            #print(type(maschera),maschera)
+            #hp.mollview(maschera) the pixels to be masked are 0 in the input file
             maschera_d=hp.ud_grade(maschera,nside_out=nside_low,dtype="float")#,pess=False,order_in='RING')
             maschera_d=np.asarray([round(n)*1.0 for n in maschera_d])
             maschera_neg=np.logical_not(maschera_d)
@@ -361,7 +371,12 @@ def mask_it(mappe,path,field,nside_low=16,nside_high=2048,mode=0):
                     mappe_out[i,...,k*channels+j]=new_map[:]
     else:
         mappe_out=np.ones((n_train,npix,channels))
-        maschere = [hp.read_map(path,field=f) for f in field]
+        if custom==0:
+            maschere = [hp.read_map(path,field=f) for f in field]
+        else:
+            f_ = np.load(path) 
+            labels=[f_.files[l] for l in field]
+            maschere = [f_[l] for l in labels]
         maschere_d=hp.ud_grade(maschere,nside_out=nside_low,dtype="float")#,pess=False,order_in='RING')
         for i,mask in enumerate(maschere_d):
             maschere_d[i]=np.asarray([round(n)*1.0 for n in mask])

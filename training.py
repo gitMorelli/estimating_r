@@ -112,10 +112,10 @@ if masking:
     mappe_B=uf.mask_it(mappe_B,path="/home/amorelli/HFI_Mask_GalPlane-apo0_2048_R2.00.fits",
                   field=field,nside_low=nside,nside_high=2048,mode=mode)
     #masks: 0=20% , 1=40% , 2=60%, 3=70, 4=80, 5=90, 6=97, 7=99 20% means that 20% of sky is visible
-if mode==0:
-    n_inputs*=len(field)
-else:
-    pass
+    if mode==0:
+        n_inputs*=len(field)
+    else:
+        pass
 
 x_train,y_train,x_val,y_val = nuf.prepare_data(y_r,mappe_B,r,n_train,n_train_fix,fval,maps_per_cl
                                                , batch_size, batch_ordering=batch_ordering)

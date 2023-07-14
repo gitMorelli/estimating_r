@@ -26,7 +26,7 @@ input_files=os.listdir(input_folder)
 for j in range(len(input_files)):
         input_files[j]=input_folder+"/"+input_files[j]
 maps_per_cl_gen=uf.maps_per_cl(distribution=0)
-maps_per_cl=maps_per_cl_gen.compute_maps_per_cl([tau[i][0]],n_train=n_test,n_train_fix=n_test)
+maps_per_cl=maps_per_cl_gen.compute_maps_per_cl([tau[0][0]],n_train=n_test,n_train_fix=n_test)
 
 for i in range(len(tau)):
     seed_test=7+i
@@ -46,7 +46,6 @@ for i in range(len(tau)):
     masking=False
     if masking:
         mappe=uf.mask_it(mappe,path="/home/amorelli/HFI_Mask_GalPlane-apo0_2048_R2.00.fits",
-                      field=1,nside_low=nside,nside_high=2048)
+                      field=1,nside_low=Nside_red,nside_high=2048)
         #masks: 0=20% , 1=40% , 2=60%, 3=70, 4=80, 5=90, 6=97, 7=99 20% means that 20% of sky is visible
-    
     np.savez(outfile_name,x_test=mappe,y_test=y_tau) 
